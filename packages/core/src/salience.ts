@@ -10,6 +10,10 @@ export interface SalienceContext {
   keywords?: string[];
   /** How many times this message's normalized text recurred in the trend window. */
   trendCount?: number;
+  /** Whether to flag toxic messages for moderation (default true). */
+  moderation?: boolean;
+  /** Toxicity score at/above which to flag (default 0.5; lower = stricter). */
+  moderationSensitivity?: number;
 }
 
 const clamp01 = (n: number): number => Math.max(0, Math.min(1, n));
@@ -105,7 +109,7 @@ export function scoreMessage(message: ChatMessage, ctx: SalienceContext = {}): S
   }
 
   // Moderation — surface flagged harassment/toxicity so the streamer or mods can act.
-  if (toxicity.flagged) {
+  if (ctx.moderation !== false && toxicity.score >= (ctx.moderationSensitivity ?? 0.5)) {
     signals.push({ category: 'moderation', weight: 0.55, reason: 'flagged for moderation' });
   }
   // Strong emotional reactions (either direction) deserve a little more attention.

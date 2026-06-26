@@ -21,8 +21,16 @@ export interface DashState {
   priorities: PriorityCallout[];
 }
 
-const WS_PORT = (import.meta.env['VITE_GLANCE_WS'] as string | undefined) ?? '8787';
-const WS_URL = `ws://localhost:${WS_PORT}`;
+// VITE_GLANCE_TOKEN selects the tenant (absent → the server's `default` tenant).
+const WS_TOKEN = import.meta.env['VITE_GLANCE_TOKEN'] as string | undefined;
+function withToken(url: string): string {
+  if (!WS_TOKEN) return url;
+  return `${url}${url.includes('?') ? '&' : '?'}token=${encodeURIComponent(WS_TOKEN)}`;
+}
+const WS_URL = withToken(
+  (import.meta.env['VITE_GLANCE_WS_URL'] as string | undefined) ??
+    `ws://localhost:${(import.meta.env['VITE_GLANCE_WS'] as string | undefined) ?? '8787'}`,
+);
 
 /** Subscribes to the gateway and exposes the latest stats, AI summary, session
  *  state, engine settings, AI priorities and a small ticker of high-salience messages. */

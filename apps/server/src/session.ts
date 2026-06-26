@@ -34,6 +34,7 @@ export class SessionController {
   private statsTimer: NodeJS.Timeout | null = null;
   private priorityTimer: NodeJS.Timeout | null = null;
   private prioritizing = false;
+  private aiPriorities = true;
   private readonly persisting = new Set<Promise<void>>();
   private state: SessionState = {
     channel: null,
@@ -55,8 +56,11 @@ export class SessionController {
   /** Apply engine settings live, and remember them for the next connect(). */
   applySettings(settings: EngineSettings): void {
     this.settings = settings;
+    this.aiPriorities = settings.aiPriorities;
     this.engine?.setKeywords(settings.keywords);
     this.engine?.setSummaryInterval(settings.summaryIntervalMs);
+    this.engine?.setSummariesEnabled(settings.aiSummaries);
+    this.engine?.setModeration(settings.moderation, settings.moderationSensitivity);
     this.stats?.setThreshold(settings.surfaceThreshold);
   }
 
@@ -107,6 +111,9 @@ export class SessionController {
       },
     });
     this.engine.start();
+    this.engine.setSummariesEnabled(this.settings.aiSummaries);
+    this.engine.setModeration(this.settings.moderation, this.settings.moderationSensitivity);
+    this.aiPriorities = this.settings.aiPriorities;
     this.statsTimer = setInterval(() => {
       if (!this.stats) return;
       const snap = this.stats.snapshot();
@@ -202,7 +209,7 @@ export class SessionController {
 
   /** Re-rank recent high-salience candidates via the AI provider and broadcast. */
   private async emitPriorities(): Promise<void> {
-    if (!this.engine || this.prioritizing) return;
+    if (!this.aiPriorities || !this.engine || this.prioritizing) return;
     const candidates = this.engine
       .snapshot(50)
       .filter((m) => m.score >= this.settings.surfaceThreshold);

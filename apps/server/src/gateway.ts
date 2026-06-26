@@ -3,29 +3,34 @@ import { WebSocketServer, WebSocket } from 'ws';
 import type {
   EngineSettings,
   ScoredMessage,
-  ServerMessage,
   SessionDetail,
   SessionState,
   SessionSummary,
 } from '@glance/core';
+import type { Bus } from './bus';
+import { resolveTenant } from './auth';
 import { logger } from './logger';
 import { metrics } from './metrics';
 
-/** The control surface the gateway exposes over HTTP + seeds new WS clients with. */
+/**
+ * The control surface the gateway exposes over HTTP + seeds new WS clients with.
+ * Every operation is tenant-scoped: the gateway resolves a client's tenant from its
+ * token (see {@link resolveTenant}) and passes it through, so tenants never see each
+ * other's sessions, settings, or archives.
+ */
 export interface GatewayControl {
-  getSnapshot: () => ScoredMessage[];
-  getSession: () => SessionState;
-  connect: (channel: string, demo: boolean) => SessionState;
-  disconnect: () => SessionState;
-  getSettings: () => EngineSettings;
-  updateSettings: (patch: unknown) => EngineSettings;
-  listSessions: () => SessionSummary[];
-  getReplay: (id: string) => SessionDetail | null;
-  deleteReplay: (id: string) => void;
+  getSnapshot: (tenant: string) => ScoredMessage[];
+  getSession: (tenant: string) => SessionState;
+  connect: (tenant: string, channel: string, demo: boolean) => SessionState;
+  disconnect: (tenant: string) => SessionState;
+  getSettings: (tenant: string) => EngineSettings;
+  updateSettings: (tenant: string, patch: unknown) => EngineSettings;
+  listSessions: (tenant: string) => SessionSummary[];
+  getReplay: (tenant: string, id: string) => SessionDetail | null;
+  deleteReplay: (tenant: string, id: string) => void;
 }
 
 export interface Gateway {
-  broadcast: (message: ServerMessage) => void;
   clientCount: () => number;
   close: () => void;
 }
@@ -45,17 +50,21 @@ const MAX_BODY_BYTES = intEnv('GLANCE_MAX_BODY_BYTES', 256 * 1024); // 256 KB RE
 const MAX_BUFFERED = intEnv('GLANCE_MAX_BUFFERED', 1024 * 1024); // 1 MB per-client send buffer
 const HEARTBEAT_MS = 30_000;
 
-type TrackedSocket = WebSocket & { isAlive?: boolean };
+type TrackedSocket = WebSocket & { isAlive?: boolean; tenant?: string };
 
 /**
  * The render-target transport + control plane. Streams `ServerMessage`s to every
  * authorized client over WebSocket and exposes a small REST API to drive sessions.
  *
- * Hardened (audit Batch 1): origin allowlist + reflected CORS, per-frame payload
- * cap, connection cap, ping/pong heartbeat (drops zombie sockets), and per-client
- * backpressure (skips slow consumers instead of buffering unboundedly).
+ * Multi-tenant: each socket joins a room keyed by its resolved tenant, and outbound
+ * messages arrive via the {@link Bus} (one subscription, fanned out per room) so the
+ * design scales to many gateway instances behind a shared bus.
+ *
+ * Hardened: origin allowlist + reflected CORS, token-gated tenant resolution,
+ * per-frame payload cap, connection cap, ping/pong heartbeat (drops zombie sockets),
+ * and per-client backpressure (skips slow consumers instead of buffering unboundedly).
  */
-export function startGateway(port: number, control: GatewayControl): Gateway {
+export function startGateway(port: number, control: GatewayControl, bus: Bus): Gateway {
   const server = createServer((req, res) => handleHttp(req, res, control));
 
   const wss = new WebSocketServer({
@@ -65,26 +74,73 @@ export function startGateway(port: number, control: GatewayControl): Gateway {
       originAllowed(info.origin),
   });
 
-  metrics.gauge('glance_ws_clients', () => wss.clients.size);
+  // tenant -> sockets in that tenant's room.
+  const rooms = new Map<string, Set<TrackedSocket>>();
+  const join = (tenant: string, socket: TrackedSocket): void => {
+    let room = rooms.get(tenant);
+    if (!room) {
+      room = new Set();
+      rooms.set(tenant, room);
+    }
+    room.add(socket);
+  };
+  const leave = (tenant: string, socket: TrackedSocket): void => {
+    const room = rooms.get(tenant);
+    if (!room) return;
+    room.delete(socket);
+    if (room.size === 0) rooms.delete(tenant);
+  };
 
-  wss.on('connection', (socket: TrackedSocket) => {
+  metrics.gauge('glance_ws_clients', () => wss.clients.size);
+  metrics.gauge('glance_ws_rooms', () => rooms.size);
+
+  // Single outbound path: tenant controllers publish to the bus; we fan out to the
+  // matching room. Swapping InProcessBus for Redis makes this multi-instance safe.
+  bus.subscribe((tenant, message) => {
+    const room = rooms.get(tenant);
+    if (!room || room.size === 0) return;
+    metrics.inc('glance_broadcasts_total');
+    const payload = JSON.stringify(message);
+    for (const socket of room) {
+      if (socket.readyState !== WebSocket.OPEN) continue;
+      if (socket.bufferedAmount > MAX_BUFFERED) continue; // skip a slow consumer
+      try {
+        socket.send(payload);
+      } catch {
+        /* a single failed send must not stop the broadcast */
+      }
+    }
+  });
+
+  wss.on('connection', (socket: TrackedSocket, req: IncomingMessage) => {
     if (wss.clients.size > MAX_CLIENTS) {
       logger.warn('ws connection refused: at capacity', { max: MAX_CLIENTS });
       metrics.inc('glance_ws_refused_total');
       socket.close(1013, 'at capacity');
       return;
     }
+
+    const tenant = resolveTenant(tokenFromUrl(req.url));
+    if (!tenant) {
+      metrics.inc('glance_ws_unauthorized_total');
+      socket.close(1008, 'unauthorized');
+      return;
+    }
+
+    socket.tenant = tenant;
+    join(tenant, socket);
     metrics.inc('glance_ws_connections_total');
     socket.isAlive = true;
     socket.on('pong', () => {
       socket.isAlive = true;
     });
     socket.on('error', () => socket.terminate());
+    socket.on('close', () => leave(tenant, socket));
 
     safeSend(socket, JSON.stringify({ type: 'hello', data: { ts: Date.now() } }));
-    safeSend(socket, JSON.stringify({ type: 'session', data: control.getSession() }));
-    safeSend(socket, JSON.stringify({ type: 'settings', data: control.getSettings() }));
-    for (const scored of control.getSnapshot()) {
+    safeSend(socket, JSON.stringify({ type: 'session', data: control.getSession(tenant) }));
+    safeSend(socket, JSON.stringify({ type: 'settings', data: control.getSettings(tenant) }));
+    for (const scored of control.getSnapshot(tenant)) {
       safeSend(socket, JSON.stringify({ type: 'message', data: scored }));
     }
   });
@@ -110,19 +166,6 @@ export function startGateway(port: number, control: GatewayControl): Gateway {
   server.listen(port);
 
   return {
-    broadcast: (message: ServerMessage) => {
-      metrics.inc('glance_broadcasts_total');
-      const payload = JSON.stringify(message);
-      for (const client of wss.clients) {
-        if (client.readyState !== WebSocket.OPEN) continue;
-        if (client.bufferedAmount > MAX_BUFFERED) continue; // skip a slow consumer
-        try {
-          client.send(payload);
-        } catch {
-          /* a single failed send must not stop the broadcast */
-        }
-      }
-    },
     clientCount: () => wss.clients.size,
     close: () => {
       clearInterval(heartbeat);
@@ -147,6 +190,8 @@ function handleHttp(req: IncomingMessage, res: ServerResponse, control: GatewayC
   }
 
   const url = (req.url ?? '').split('?')[0] ?? '';
+
+  // Ops endpoints are unauthenticated by design (scraped by Prometheus / k8s probes).
   if (req.method === 'GET' && url === '/metrics') {
     res.writeHead(200, { 'content-type': 'text/plain; version=0.0.4', ...cors });
     res.end(metrics.render());
@@ -161,40 +206,47 @@ function handleHttp(req: IncomingMessage, res: ServerResponse, control: GatewayC
     return;
   }
 
+  // Everything below is tenant-scoped and requires a resolvable token.
+  const tenant = resolveTenant(tokenFromReq(req));
+  if (!tenant) {
+    send(401, { error: 'unauthorized' });
+    return;
+  }
+
   if (url === '/api/session') {
-    if (req.method === 'GET') return send(200, control.getSession());
-    if (req.method === 'DELETE') return send(200, control.disconnect());
+    if (req.method === 'GET') return send(200, control.getSession(tenant));
+    if (req.method === 'DELETE') return send(200, control.disconnect(tenant));
     if (req.method === 'POST') {
       readJson(req)
         .then((body) => {
           const channel = typeof body['channel'] === 'string' ? body['channel'] : '';
           const demo = body['demo'] !== false;
-          send(200, control.connect(channel, demo));
+          send(200, control.connect(tenant, channel, demo));
         })
         .catch((err: Error) => send(err.message === 'too_large' ? 413 : 400, { error: err.message }));
       return;
     }
   }
   if (url === '/api/settings') {
-    if (req.method === 'GET') return send(200, control.getSettings());
+    if (req.method === 'GET') return send(200, control.getSettings(tenant));
     if (req.method === 'POST' || req.method === 'PUT') {
       readJson(req)
-        .then((body) => send(200, control.updateSettings(body)))
+        .then((body) => send(200, control.updateSettings(tenant, body)))
         .catch((err: Error) => send(err.message === 'too_large' ? 413 : 400, { error: err.message }));
       return;
     }
   }
   if (url === '/api/sessions') {
-    if (req.method === 'GET') return send(200, control.listSessions());
+    if (req.method === 'GET') return send(200, control.listSessions(tenant));
   }
   if (url.startsWith('/api/sessions/')) {
     const id = decodeURIComponent(url.slice('/api/sessions/'.length));
     if (req.method === 'GET') {
-      const detail = control.getReplay(id);
+      const detail = control.getReplay(tenant, id);
       return send(detail ? 200 : 404, detail ?? { error: 'not found' });
     }
     if (req.method === 'DELETE') {
-      control.deleteReplay(id);
+      control.deleteReplay(tenant, id);
       return send(200, { ok: true });
     }
   }
@@ -220,6 +272,21 @@ function readJson(req: IncomingMessage): Promise<Record<string, unknown>> {
     });
     req.on('error', () => reject(new Error('request_error')));
   });
+}
+
+/** Extract the `token` query param from a request URL (used by browser WS clients). */
+function tokenFromUrl(url: string | undefined): string | undefined {
+  if (!url) return undefined;
+  const q = url.indexOf('?');
+  if (q < 0) return undefined;
+  return new URLSearchParams(url.slice(q + 1)).get('token') ?? undefined;
+}
+
+/** Extract a token from `Authorization: Bearer …` or the `token` query param. */
+function tokenFromReq(req: IncomingMessage): string | undefined {
+  const auth = req.headers.authorization;
+  if (auth && auth.startsWith('Bearer ')) return auth.slice(7).trim();
+  return tokenFromUrl(req.url);
 }
 
 export function originAllowed(origin: string | undefined): boolean {

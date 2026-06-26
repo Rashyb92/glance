@@ -9,6 +9,10 @@ export interface OverlaySettings {
   opacity: number; // 0.5..1
   density: 'compact' | 'cozy' | 'roomy';
   motion: boolean;
+  /** Does THIS device speak/chime routed items? (opt-in) */
+  audio: boolean;
+  /** Output volume, 0..1. */
+  volume: number;
 }
 
 const STORAGE_KEY = 'glance.overlay.v1';
@@ -19,6 +23,8 @@ const DEFAULTS: OverlaySettings = {
   opacity: 1,
   density: 'cozy',
   motion: true,
+  audio: false,
+  volume: 0.8,
 };
 
 function clamp(n: number, lo: number, hi: number): number {
@@ -36,6 +42,8 @@ function normalize(input: unknown): OverlaySettings {
         ? (o['density'] as OverlaySettings['density'])
         : 'cozy',
     motion: o['motion'] !== false,
+    audio: o['audio'] === true,
+    volume: clamp(typeof o['volume'] === 'number' ? o['volume'] : 0.8, 0, 1),
   };
 }
 

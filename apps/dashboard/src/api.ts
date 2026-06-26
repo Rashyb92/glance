@@ -2,39 +2,52 @@ import type { EngineSettings, SessionDetail, SessionSummary } from '@glance/core
 
 // Control-plane + replay calls to the Glance server. Live state (session/settings)
 // is echoed back over the WebSocket, so the mutating helpers ignore the body.
-const WS_PORT = (import.meta.env['VITE_GLANCE_WS'] as string | undefined) ?? '8787';
-const BASE = `http://localhost:${WS_PORT}`;
+// Deploy-configurable: set VITE_GLANCE_API_URL to a full https:// URL in production.
+const BASE =
+  (import.meta.env['VITE_GLANCE_API_URL'] as string | undefined) ??
+  `http://localhost:${(import.meta.env['VITE_GLANCE_WS'] as string | undefined) ?? '8787'}`;
+
+// VITE_GLANCE_TOKEN selects the tenant (absent → the server's `default` tenant).
+const TOKEN = import.meta.env['VITE_GLANCE_TOKEN'] as string | undefined;
+function headers(extra?: Record<string, string>): Record<string, string> {
+  const h: Record<string, string> = { ...extra };
+  if (TOKEN) h['authorization'] = `Bearer ${TOKEN}`;
+  return h;
+}
 
 export async function connectSession(channel: string, demo: boolean): Promise<void> {
   await fetch(`${BASE}/api/session`, {
     method: 'POST',
-    headers: { 'content-type': 'application/json' },
+    headers: headers({ 'content-type': 'application/json' }),
     body: JSON.stringify({ channel, demo }),
   });
 }
 
 export async function disconnectSession(): Promise<void> {
-  await fetch(`${BASE}/api/session`, { method: 'DELETE' });
+  await fetch(`${BASE}/api/session`, { method: 'DELETE', headers: headers() });
 }
 
 export async function updateSettings(patch: Partial<EngineSettings>): Promise<void> {
   await fetch(`${BASE}/api/settings`, {
     method: 'PUT',
-    headers: { 'content-type': 'application/json' },
+    headers: headers({ 'content-type': 'application/json' }),
     body: JSON.stringify(patch),
   });
 }
 
 export async function listSessions(): Promise<SessionSummary[]> {
-  const r = await fetch(`${BASE}/api/sessions`);
+  const r = await fetch(`${BASE}/api/sessions`, { headers: headers() });
   return r.ok ? ((await r.json()) as SessionSummary[]) : [];
 }
 
 export async function getReplay(id: string): Promise<SessionDetail | null> {
-  const r = await fetch(`${BASE}/api/sessions/${encodeURIComponent(id)}`);
+  const r = await fetch(`${BASE}/api/sessions/${encodeURIComponent(id)}`, { headers: headers() });
   return r.ok ? ((await r.json()) as SessionDetail) : null;
 }
 
 export async function deleteReplay(id: string): Promise<void> {
-  await fetch(`${BASE}/api/sessions/${encodeURIComponent(id)}`, { method: 'DELETE' });
+  await fetch(`${BASE}/api/sessions/${encodeURIComponent(id)}`, {
+    method: 'DELETE',
+    headers: headers(),
+  });
 }

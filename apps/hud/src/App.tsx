@@ -1,4 +1,4 @@
-import { useMemo, useState, type ReactNode } from 'react';
+import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import type {
   AudienceMood,
   ChannelEvent,
@@ -9,6 +9,7 @@ import type {
 } from '@glance/core';
 import { useGlanceFeed, type ConnectionStatus } from './useGlanceFeed';
 import { useOverlaySettings, type OverlaySettings } from './useOverlaySettings';
+import { earcon, speak } from './audio';
 
 // Fallback until the server broadcasts its live engine threshold.
 const FALLBACK_THRESHOLD = 0.5;
@@ -62,6 +63,35 @@ export function App(): JSX.Element {
     if (mode === 'raw') return messages.slice(-counts.raw);
     return messages.filter((m) => m.score >= threshold).slice(-counts.hybrid);
   }, [messages, mode, threshold, counts.raw, counts.hybrid]);
+
+  // Audio output (opt-in per device): speak / chime items per the routing matrix.
+  const lastPriorityId = useRef<string | null>(null);
+  const lastEventId = useRef<string | null>(null);
+
+  useEffect(() => {
+    if (!overlay.audio) return;
+    const p = priorities[0];
+    if (!p || p.id === lastPriorityId.current) return;
+    lastPriorityId.current = p.id;
+    const channels = settings?.routing?.[p.category] ?? [];
+    if (channels.includes('earcon')) {
+      earcon(
+        p.category === 'donation' ? 'donation' : p.category === 'moderation' ? 'alert' : 'event',
+        overlay.volume,
+      );
+    }
+    if (channels.includes('voice')) speak(`${p.author ?? 'chat'} says ${p.text}`, overlay.volume);
+  }, [priorities, overlay.audio, overlay.volume, settings]);
+
+  useEffect(() => {
+    if (!overlay.audio) return;
+    const e = events[0];
+    if (!e || e.event.id === lastEventId.current) return;
+    lastEventId.current = e.event.id;
+    const channels = settings?.routing?.event ?? [];
+    if (channels.includes('earcon')) earcon('event', overlay.volume);
+    if (channels.includes('voice')) speak(e.event.summary, overlay.volume);
+  }, [events, overlay.audio, overlay.volume, settings]);
 
   const channelLabel = session?.channel
     ? `#${session.channel}`
@@ -240,6 +270,29 @@ function OverlayPanel({
           {settings.motion ? 'On' : 'Off'}
         </button>
       </div>
+      <div className="panel-row">
+        <span>Audio (this device)</span>
+        <button
+          type="button"
+          className={`toggle ${settings.audio ? 'on' : ''}`}
+          onClick={() => update({ audio: !settings.audio })}
+        >
+          {settings.audio ? 'On' : 'Off'}
+        </button>
+      </div>
+      {settings.audio && (
+        <label className="panel-row col">
+          <span>Volume {Math.round(settings.volume * 100)}%</span>
+          <input
+            type="range"
+            min={0}
+            max={1}
+            step={0.05}
+            value={settings.volume}
+            onChange={(e) => update({ volume: Number(e.target.value) })}
+          />
+        </label>
+      )}
     </div>
   );
 }

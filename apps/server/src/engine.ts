@@ -27,6 +27,9 @@ export class GlanceEngine {
   private summarizing = false;
   private keywords: string[];
   private summaryIntervalMs: number;
+  private summariesEnabled = true;
+  private moderation = true;
+  private moderationSensitivity = 0.5;
 
   constructor(private readonly opts: EngineOptions) {
     this.keywords = opts.keywords ?? [];
@@ -54,12 +57,23 @@ export class GlanceEngine {
     }
   }
 
+  setSummariesEnabled(enabled: boolean): void {
+    this.summariesEnabled = enabled;
+  }
+
+  setModeration(enabled: boolean, sensitivity: number): void {
+    this.moderation = enabled;
+    this.moderationSensitivity = sensitivity;
+  }
+
   ingestMessage(message: ChatMessage): void {
     const trendCount = this.trends.record(message.text, message.timestamp);
     const scored = scoreMessage(message, {
       broadcaster: this.opts.broadcaster,
       keywords: this.keywords,
       trendCount,
+      moderation: this.moderation,
+      moderationSensitivity: this.moderationSensitivity,
     });
     this.recent.push(scored);
     if (this.recent.length > this.maxRecent) this.recent.shift();
@@ -76,7 +90,7 @@ export class GlanceEngine {
   }
 
   private async emitSummary(): Promise<void> {
-    if (this.summarizing || this.recent.length === 0) return;
+    if (!this.summariesEnabled || this.summarizing || this.recent.length === 0) return;
     this.summarizing = true;
     try {
       const summary = await this.opts.ai.summarize({

@@ -52,13 +52,23 @@ export class SettingsService {
 
   update(patch: unknown): EngineSettings {
     const p = patch && typeof patch === 'object' ? (patch as Record<string, unknown>) : {};
-    // Pull ONLY the known fields over current — never spread raw client input.
-    // normalizeEngineSettings then validates + clamps each one.
-    this.current = normalizeEngineSettings({
-      surfaceThreshold: 'surfaceThreshold' in p ? p['surfaceThreshold'] : this.current.surfaceThreshold,
-      keywords: 'keywords' in p ? p['keywords'] : this.current.keywords,
-      summaryIntervalMs: 'summaryIntervalMs' in p ? p['summaryIntervalMs'] : this.current.summaryIntervalMs,
-    });
+    // Start from current, then apply ONLY known keys present in the patch — never
+    // spread raw client input. normalizeEngineSettings then validates + clamps.
+    const merged: Record<string, unknown> = { ...this.current };
+    const keys: (keyof EngineSettings)[] = [
+      'surfaceThreshold',
+      'keywords',
+      'summaryIntervalMs',
+      'routing',
+      'aiSummaries',
+      'aiPriorities',
+      'moderation',
+      'moderationSensitivity',
+    ];
+    for (const key of keys) {
+      if (key in p) merged[key] = p[key];
+    }
+    this.current = normalizeEngineSettings(merged);
     this.store.save(this.current);
     this.onChange(this.current);
     return this.current;

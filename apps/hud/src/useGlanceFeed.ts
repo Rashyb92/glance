@@ -26,8 +26,18 @@ export interface FeedState {
   priorities: PriorityCallout[];
 }
 
-const WS_PORT = (import.meta.env['VITE_GLANCE_WS'] as string | undefined) ?? '8787';
-const WS_URL = `ws://localhost:${WS_PORT}`;
+// Deploy-configurable: set VITE_GLANCE_WS_URL to a full wss:// URL in production;
+// falls back to a localhost port for dev. VITE_GLANCE_TOKEN selects the tenant
+// (absent → the server's `default` tenant, so local dev needs no token).
+const WS_TOKEN = import.meta.env['VITE_GLANCE_TOKEN'] as string | undefined;
+function withToken(url: string): string {
+  if (!WS_TOKEN) return url;
+  return `${url}${url.includes('?') ? '&' : '?'}token=${encodeURIComponent(WS_TOKEN)}`;
+}
+const WS_URL = withToken(
+  (import.meta.env['VITE_GLANCE_WS_URL'] as string | undefined) ??
+    `ws://localhost:${(import.meta.env['VITE_GLANCE_WS'] as string | undefined) ?? '8787'}`,
+);
 const MAX_MESSAGES = 80;
 const MAX_EVENTS = 8;
 

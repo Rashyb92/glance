@@ -3,7 +3,9 @@ import type {
   AudienceMood,
   EngineSettings,
   MomentItem,
+  OutputChannel,
   PriorityCallout,
+  RoutingMatrix,
   SalienceCategory,
   SessionState,
 } from '@glance/core';
@@ -37,6 +39,15 @@ const CATEGORY_TONE: Record<SalienceCategory, Tone> = {
   highlight: 'soft',
   chatter: 'muted',
 };
+
+const ROUTABLE: SalienceCategory[] = [
+  'donation',
+  'event',
+  'question',
+  'mention',
+  'moderation',
+  'trend',
+];
 
 export function Dashboard(): JSX.Element {
   const { status, stats, summary, ticker, session, settings, priorities } = useStats();
@@ -297,6 +308,11 @@ function TuningCard({ settings }: { settings: EngineSettings | null }): JSX.Elem
   const [threshold, setThreshold] = useState(0.5);
   const [intervalSec, setIntervalSec] = useState(15);
   const [keywords, setKeywords] = useState('');
+  const [routing, setRouting] = useState<RoutingMatrix>({});
+  const [aiSummaries, setAiSummaries] = useState(true);
+  const [aiPriorities, setAiPriorities] = useState(true);
+  const [moderation, setModeration] = useState(true);
+  const [sensitivity, setSensitivity] = useState(0.5);
   const debounce = useRef<ReturnType<typeof setTimeout> | null>(null);
   const kwFocused = useRef(false);
 
@@ -304,6 +320,11 @@ function TuningCard({ settings }: { settings: EngineSettings | null }): JSX.Elem
     if (!settings) return;
     setThreshold(settings.surfaceThreshold);
     setIntervalSec(Math.round(settings.summaryIntervalMs / 1000));
+    setRouting(settings.routing);
+    setAiSummaries(settings.aiSummaries);
+    setAiPriorities(settings.aiPriorities);
+    setModeration(settings.moderation);
+    setSensitivity(settings.moderationSensitivity);
     if (!kwFocused.current) setKeywords(settings.keywords.join(', '));
   }, [settings]);
 
@@ -317,6 +338,17 @@ function TuningCard({ settings }: { settings: EngineSettings | null }): JSX.Elem
       .map((s) => s.trim())
       .filter(Boolean);
     void updateSettings({ keywords: list });
+  };
+
+  const toggleRoute = (cat: SalienceCategory, ch: OutputChannel, on: boolean): void => {
+    setRouting((prev) => {
+      const channels = new Set(prev[cat] ?? []);
+      if (on) channels.add(ch);
+      else channels.delete(ch);
+      const next: RoutingMatrix = { ...prev, [cat]: [...channels] };
+      push({ routing: next });
+      return next;
+    });
   };
 
   return (
@@ -356,6 +388,63 @@ function TuningCard({ settings }: { settings: EngineSettings | null }): JSX.Elem
             }}
           />
         </label>
+
+        <div className="tune-checks">
+          <label className="tune-check">
+            <input
+              type="checkbox"
+              checked={aiSummaries}
+              onChange={(e) => {
+                setAiSummaries(e.target.checked);
+                push({ aiSummaries: e.target.checked });
+              }}
+            />
+            AI summaries
+          </label>
+          <label className="tune-check">
+            <input
+              type="checkbox"
+              checked={aiPriorities}
+              onChange={(e) => {
+                setAiPriorities(e.target.checked);
+                push({ aiPriorities: e.target.checked });
+              }}
+            />
+            AI priority callouts
+          </label>
+          <label className="tune-check">
+            <input
+              type="checkbox"
+              checked={moderation}
+              onChange={(e) => {
+                setModeration(e.target.checked);
+                push({ moderation: e.target.checked });
+              }}
+            />
+            Moderation flagging
+          </label>
+        </div>
+        {moderation && (
+          <label className="tune-row">
+            <span>
+              Moderation sensitivity <b>{sensitivity.toFixed(2)}</b>
+              <span className="hint-sm"> lower = stricter</span>
+            </span>
+            <input
+              type="range"
+              min={0.2}
+              max={0.9}
+              step={0.05}
+              value={sensitivity}
+              onChange={(e) => {
+                const v = Number(e.target.value);
+                setSensitivity(v);
+                push({ moderationSensitivity: v });
+              }}
+            />
+          </label>
+        )}
+
         <label className="tune-row">
           <span>Keywords to boost</span>
           <input
@@ -376,6 +465,32 @@ function TuningCard({ settings }: { settings: EngineSettings | null }): JSX.Elem
             }}
           />
         </label>
+
+        <div className="tune-row">
+          <span>Route what to where</span>
+          <div className="routing">
+            <div className="routing-head">
+              <span />
+              <span>see</span>
+              <span>hear</span>
+              <span>chime</span>
+            </div>
+            {ROUTABLE.map((cat) => (
+              <div className="routing-row" key={cat}>
+                <span className="routing-cat">{cat}</span>
+                {(['display', 'voice', 'earcon'] as const).map((ch) => (
+                  <input
+                    key={ch}
+                    type="checkbox"
+                    aria-label={`${cat} ${ch}`}
+                    checked={(routing[cat] ?? []).includes(ch)}
+                    onChange={(e) => toggleRoute(cat, ch, e.target.checked)}
+                  />
+                ))}
+              </div>
+            ))}
+          </div>
+        </div>
       </div>
     </Card>
   );

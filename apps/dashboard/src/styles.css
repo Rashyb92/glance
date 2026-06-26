@@ -618,6 +618,28 @@ body {
 .tune-input::placeholder {
   color: var(--muted);
 }
+.tune-checks {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.tune-check {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 12.5px;
+  color: var(--ink-soft);
+  cursor: pointer;
+}
+.tune-check input {
+  accent-color: var(--indigo);
+  cursor: pointer;
+}
+.hint-sm {
+  color: var(--muted);
+  font-size: 11px;
+  font-weight: 400;
+}
 
 /* ---- Live / Replay tabs ---- */
 .cc-tabs {
@@ -893,4 +915,41 @@ body {
   border-radius: 999px;
   padding: 2px 8px;
   white-space: nowrap;
+}
+
+/* ---- Routing matrix ---- */
+.routing {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  margin-top: 5px;
+}
+.routing-head,
+.routing-row {
+  display: grid;
+  grid-template-columns: 1fr 44px 44px 44px;
+  align-items: center;
+  gap: 4px;
+}
+.routing-head {
+  font-size: 10px;
+  color: var(--muted);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+.routing-head span {
+  text-align: center;
+}
+.routing-head span:first-child {
+  text-align: left;
+}
+.routing-cat {
+  font-size: 12px;
+  color: var(--ink-soft);
+  text-transform: capitalize;
+}
+.routing-row input {
+  justify-self: center;
+  accent-color: var(--indigo);
+  cursor: pointer;
 }
