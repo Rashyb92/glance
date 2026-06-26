@@ -15,11 +15,15 @@ function headers(extra?: Record<string, string>): Record<string, string> {
   return h;
 }
 
-export async function connectSession(channel: string, demo: boolean): Promise<void> {
+export async function connectSession(
+  channel: string,
+  demo: boolean,
+  platform: 'twitch' | 'youtube' | 'kick' = 'twitch',
+): Promise<void> {
   await fetch(`${BASE}/api/session`, {
     method: 'POST',
     headers: headers({ 'content-type': 'application/json' }),
-    body: JSON.stringify({ channel, demo }),
+    body: JSON.stringify({ channel, demo, platform }),
   });
 }
 

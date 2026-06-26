@@ -248,6 +248,7 @@ function PriorityCard({ priorities }: { priorities: PriorityCallout[] }): JSX.El
 function ConnectBar({ session }: { session: SessionState | null }): JSX.Element {
   const [channel, setChannel] = useState('');
   const [demo, setDemo] = useState(true);
+  const [platform, setPlatform] = useState<'twitch' | 'youtube' | 'kick'>('twitch');
   const [busy, setBusy] = useState(false);
 
   // Seed the controls from the live session once it arrives.
@@ -255,7 +256,8 @@ function ConnectBar({ session }: { session: SessionState | null }): JSX.Element 
     if (!session) return;
     setChannel(session.channel ?? '');
     setDemo(session.demo);
-  }, [session?.channel, session?.demo]);
+    if (session.platform && session.platform !== 'demo') setPlatform(session.platform);
+  }, [session?.channel, session?.demo, session?.platform]);
 
   const current = session?.channel ?? null;
   const connected = session?.connected ?? false;
@@ -280,10 +282,20 @@ function ConnectBar({ session }: { session: SessionState | null }): JSX.Element 
           placeholder="twitch channel (e.g. xqc) — blank = demo only"
           onChange={(e) => setChannel(e.target.value)}
           onKeyDown={(e) => {
-            if (e.key === 'Enter') void run(() => connectSession(channel, demo));
+            if (e.key === 'Enter') void run(() => connectSession(channel, demo, platform));
           }}
         />
       </div>
+      <select
+        className="connect-platform"
+        value={platform}
+        aria-label="Platform"
+        onChange={(e) => setPlatform(e.target.value as 'twitch' | 'youtube' | 'kick')}
+      >
+        <option value="twitch">Twitch</option>
+        <option value="youtube">YouTube</option>
+        <option value="kick">Kick</option>
+      </select>
       <label className="connect-demo">
         <input type="checkbox" checked={demo} onChange={(e) => setDemo(e.target.checked)} />
         demo feed
@@ -291,7 +303,7 @@ function ConnectBar({ session }: { session: SessionState | null }): JSX.Element 
       <button
         className="connect-btn"
         disabled={busy}
-        onClick={() => void run(() => connectSession(channel, demo))}
+        onClick={() => void run(() => connectSession(channel, demo, platform))}
       >
         {current ? 'Switch' : 'Connect'}
       </button>

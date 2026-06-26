@@ -3,6 +3,7 @@ import { WebSocketServer, WebSocket } from 'ws';
 import type {
   AnalyticsReport,
   EngineSettings,
+  Platform,
   ScoredMessage,
   SessionDetail,
   SessionState,
@@ -24,7 +25,7 @@ import { metrics } from './metrics';
 export interface GatewayControl {
   getSnapshot: (tenant: string) => ScoredMessage[];
   getSession: (tenant: string) => SessionState;
-  connect: (tenant: string, channel: string, demo: boolean) => SessionState;
+  connect: (tenant: string, channel: string, demo: boolean, platform: Platform) => SessionState;
   disconnect: (tenant: string) => SessionState;
   getSettings: (tenant: string) => EngineSettings;
   updateSettings: (tenant: string, patch: unknown) => EngineSettings;
@@ -263,7 +264,7 @@ function handleHttp(
         .then((body) => {
           const channel = typeof body['channel'] === 'string' ? body['channel'] : '';
           const demo = body['demo'] !== false;
-          send(200, control.connect(tenant, channel, demo));
+          send(200, control.connect(tenant, channel, demo, connectPlatform(body['platform'])));
         })
         .catch((err: Error) => send(err.message === 'too_large' ? 413 : 400, { error: err.message }));
       return;
@@ -356,6 +357,11 @@ function readJson(req: IncomingMessage): Promise<Record<string, unknown>> {
     });
     req.on('error', () => reject(new Error('request_error')));
   });
+}
+
+/** Validate a connect request's platform (defaults to twitch). */
+function connectPlatform(value: unknown): Platform {
+  return value === 'youtube' || value === 'kick' ? value : 'twitch';
 }
 
 /** Extract a named query param from a request URL. */

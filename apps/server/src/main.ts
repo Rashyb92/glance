@@ -9,6 +9,7 @@ import { FileSettingsStore } from './settings-store';
 import { FileStorage } from './storage';
 import { OAuthService } from './integrations/oauth-service';
 import { TokenStore } from './integrations/oauth-token-store';
+import type { ProviderId } from './integrations/oauth-providers';
 import { TeamStore } from './team-store';
 import { logger } from './logger';
 
@@ -29,23 +30,23 @@ function safeTenant(tenant: string): string {
   return tenant.replace(/[^a-zA-Z0-9_-]/g, '').slice(0, 64) || 'default';
 }
 
-/** Live-Twitch link: reads a tenant's stored token (refreshing if near expiry). */
-function buildTwitchLink(clientId: string) {
-  const tokens = new TokenStore(resolve(repoRoot, '.data', 'tokens'));
-  const oauth = new OAuthService(
-    process.env['GLANCE_PUBLIC_URL'] ?? `http://localhost:${config.wsPort}`,
-  );
+const tokens = new TokenStore(resolve(repoRoot, '.data', 'tokens'));
+const oauth = new OAuthService(
+  process.env['GLANCE_PUBLIC_URL'] ?? `http://localhost:${config.wsPort}`,
+);
+
+/** Reads (and refreshes near expiry) a tenant's stored token for a provider. */
+function tokenAccessor(provider: ProviderId) {
   return {
-    clientId,
-    hasToken: (tenant: string): boolean => tokens.load(tenant, 'twitch') !== null,
+    hasToken: (tenant: string): boolean => tokens.load(tenant, provider) !== null,
     getToken: async (tenant: string): Promise<string | null> => {
-      const tok = tokens.load(tenant, 'twitch');
+      const tok = tokens.load(tenant, provider);
       if (!tok) return null;
       if (tok.expiresAt > Date.now() + 60_000) return tok.accessToken;
       if (!tok.refreshToken) return tok.accessToken;
       try {
-        const next = await oauth.refresh('twitch', tok.refreshToken);
-        tokens.save(tenant, 'twitch', next);
+        const next = await oauth.refresh(provider, tok.refreshToken);
+        tokens.save(tenant, provider, next);
         return next.accessToken;
       } catch {
         return tok.accessToken; // use the stale token; the adapter surfaces failures
@@ -56,9 +57,13 @@ function buildTwitchLink(clientId: string) {
 
 const bus = new InProcessBus();
 const team = new TeamStore(resolve(repoRoot, '.data', 'teams'));
-// Active only when a Twitch app is configured; otherwise tenants use the IRC reader.
+// Live readers activate when the matching app is configured; otherwise tenants fall
+// back to IRC (Twitch) or the demo feed.
 const twitchClientId = process.env['TWITCH_CLIENT_ID'];
-const twitchLink = twitchClientId ? buildTwitchLink(twitchClientId) : undefined;
+const twitchLink = twitchClientId
+  ? { clientId: twitchClientId, ...tokenAccessor('twitch') }
+  : undefined;
+const youtubeLink = process.env['YOUTUBE_CLIENT_ID'] ? tokenAccessor('youtube') : undefined;
 
 const hub = new Hub({
   ai,
@@ -67,6 +72,7 @@ const hub = new Hub({
   makeSettingsStore: (tenant) =>
     new FileSettingsStore(resolve(repoRoot, '.data', 'settings', `${safeTenant(tenant)}.json`)),
   twitchLink,
+  youtubeLink,
   team,
 });
 

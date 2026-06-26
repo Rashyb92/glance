@@ -5,6 +5,7 @@ import {
   PLANS,
   type AnalyticsReport,
   type EngineSettings,
+  type Platform,
   type PlanId,
   type ScoredMessage,
   type SessionDetail,
@@ -13,7 +14,7 @@ import {
   type TeamMember,
 } from '@glance/core';
 import type { AIProvider } from '@glance/ai';
-import { TwitchEventSubAdapter, type PlatformAdapter } from '@glance/platforms';
+import { TwitchEventSubAdapter, YouTubeAdapter, type PlatformAdapter } from '@glance/platforms';
 import { SessionController } from './session';
 import { SettingsService, type SettingsStore } from './settings-store';
 import type { Storage } from './storage';
@@ -48,6 +49,11 @@ export interface HubDeps {
     hasToken: (tenant: string) => boolean;
     getToken: (tenant: string) => Promise<string | null>;
   };
+  /** When set, tenants with a linked YouTube token read live chat via the API. */
+  youtubeLink?: {
+    hasToken: (tenant: string) => boolean;
+    getToken: (tenant: string) => Promise<string | null>;
+  };
   /** Team roster store (gated to plans with `teamManagement`). */
   team?: TeamStore;
 }
@@ -75,8 +81,8 @@ export class Hub {
   getSettings(tenant: string): EngineSettings {
     return applyPlanLimits(this.tenant(tenant).settings.get(), this.planId(tenant));
   }
-  connect(tenant: string, channel: string, demo: boolean): SessionState {
-    return this.tenant(tenant).controller.connect(channel, demo);
+  connect(tenant: string, channel: string, demo: boolean, source: Platform = 'twitch'): SessionState {
+    return this.tenant(tenant).controller.connect(channel, demo, source);
   }
   disconnect(tenant: string): SessionState {
     return this.tenant(tenant).controller.disconnect();
@@ -158,6 +164,13 @@ export class Hub {
               })
             : null
       : undefined;
+    const ytLink = this.deps.youtubeLink;
+    const makeYouTubeAdapter = ytLink
+      ? (channel: string): PlatformAdapter | null =>
+          ytLink.hasToken(id)
+            ? new YouTubeAdapter(channel, { getToken: () => ytLink.getToken(id) })
+            : null
+      : undefined;
     const controller = new SessionController({
       ai: this.deps.ai,
       storage,
@@ -165,6 +178,7 @@ export class Hub {
       // Meter AI calls against the tenant's plan cap.
       canUseAi: () => this.usage.tryConsume(id, PLANS[this.planId(id)].limits.aiCallsPerDay),
       makeTwitchAdapter,
+      makeYouTubeAdapter,
     });
     const settings = new SettingsService(this.deps.makeSettingsStore(id), (next) => {
       // Enforce the plan: clients and the engine only ever see clamped settings.

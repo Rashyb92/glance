@@ -5,11 +5,12 @@ import type {
   ChatMessage,
   ChatSummary,
   EngineSettings,
+  Platform,
   ScoredMessage,
   ServerMessage,
   SessionState,
 } from '@glance/core';
-import { DemoAdapter, TwitchAdapter } from '@glance/platforms';
+import { DemoAdapter, KickAdapter, TwitchAdapter } from '@glance/platforms';
 import type { AdapterHandlers, PlatformAdapter } from '@glance/platforms';
 import type { AIProvider } from '@glance/ai';
 import { GlanceEngine } from './engine';
@@ -24,6 +25,8 @@ export interface SessionDeps {
   canUseAi?: () => boolean;
   /** Optional factory for a live (EventSub) Twitch adapter; null → fall back to IRC. */
   makeTwitchAdapter?: (channel: string) => PlatformAdapter | null;
+  /** Optional factory for a YouTube adapter (needs a linked token); null → demo. */
+  makeYouTubeAdapter?: (channel: string) => PlatformAdapter | null;
 }
 
 /**
@@ -77,17 +80,20 @@ export class SessionController {
     return this.engine?.snapshot(limit) ?? [];
   }
 
-  connect(channel: string, demo: boolean): SessionState {
+  connect(channel: string, demo: boolean, source: Platform = 'twitch'): SessionState {
     this.teardown();
     let ch = channel.trim().replace(/^#/, '').toLowerCase();
-    // Validate before opening an outbound Twitch connection (Twitch logins are
-    // 4-25 chars, [a-z0-9_]); reject garbage rather than reconnect-looping on it.
-    if (ch && !/^[a-z0-9_]{3,25}$/.test(ch)) {
+    // Validate per platform (Twitch logins are stricter than Kick/YouTube slugs);
+    // reject garbage rather than reconnect-looping on it.
+    const valid = source === 'twitch' ? /^[a-z0-9_]{3,25}$/ : /^[a-z0-9_.-]{1,60}$/;
+    if (ch && !valid.test(ch)) {
       this.deps.log(`rejected invalid channel: ${ch.slice(0, 40)}`);
       ch = '';
     }
+    // Pick the live adapter up-front so the session is labelled with the real source.
+    const live = ch ? this.buildAdapter(source, ch) : null;
     const label = ch || 'demo';
-    const platform = ch ? 'twitch' : 'demo';
+    const platform: Platform = live ? source : 'demo';
 
     this.recorder = new SessionRecorder(
       // Time prefix keeps archives debuggable; crypto suffix makes IDs unguessable.
@@ -132,11 +138,7 @@ export class SessionController {
     this.priorityTimer = setInterval(() => void this.emitPriorities(), 9000);
 
     this.adapters = [];
-    if (ch) {
-      // Prefer a live EventSub adapter when the tenant has linked Twitch; else IRC.
-      const live = this.deps.makeTwitchAdapter?.(ch) ?? null;
-      this.adapters.push(live ?? new TwitchAdapter(ch));
-    }
+    if (live) this.adapters.push(live);
     if (demo || this.adapters.length === 0) this.adapters.push(new DemoAdapter(ch || 'glance_demo'));
     for (const adapter of this.adapters) {
       const handlers: AdapterHandlers = {
@@ -241,6 +243,13 @@ export class SessionController {
     } finally {
       this.prioritizing = false;
     }
+  }
+
+  /** Construct the live adapter for a platform, or null if it can't read live. */
+  private buildAdapter(source: Platform, ch: string): PlatformAdapter | null {
+    if (source === 'kick') return new KickAdapter(ch);
+    if (source === 'youtube') return this.deps.makeYouTubeAdapter?.(ch) ?? null;
+    return this.deps.makeTwitchAdapter?.(ch) ?? new TwitchAdapter(ch);
   }
 
   private teardown(): void {
