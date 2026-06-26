@@ -7,6 +7,9 @@ import { Hub } from './hub';
 import { InProcessBus } from './bus';
 import { FileSettingsStore } from './settings-store';
 import { FileStorage } from './storage';
+import { OAuthService } from './integrations/oauth-service';
+import { TokenStore } from './integrations/oauth-token-store';
+import { TeamStore } from './team-store';
 import { logger } from './logger';
 
 // Refuse to boot in production without auth: with no secret every client collapses
@@ -26,13 +29,45 @@ function safeTenant(tenant: string): string {
   return tenant.replace(/[^a-zA-Z0-9_-]/g, '').slice(0, 64) || 'default';
 }
 
+/** Live-Twitch link: reads a tenant's stored token (refreshing if near expiry). */
+function buildTwitchLink(clientId: string) {
+  const tokens = new TokenStore(resolve(repoRoot, '.data', 'tokens'));
+  const oauth = new OAuthService(
+    process.env['GLANCE_PUBLIC_URL'] ?? `http://localhost:${config.wsPort}`,
+  );
+  return {
+    clientId,
+    hasToken: (tenant: string): boolean => tokens.load(tenant, 'twitch') !== null,
+    getToken: async (tenant: string): Promise<string | null> => {
+      const tok = tokens.load(tenant, 'twitch');
+      if (!tok) return null;
+      if (tok.expiresAt > Date.now() + 60_000) return tok.accessToken;
+      if (!tok.refreshToken) return tok.accessToken;
+      try {
+        const next = await oauth.refresh('twitch', tok.refreshToken);
+        tokens.save(tenant, 'twitch', next);
+        return next.accessToken;
+      } catch {
+        return tok.accessToken; // use the stale token; the adapter surfaces failures
+      }
+    },
+  };
+}
+
 const bus = new InProcessBus();
+const team = new TeamStore(resolve(repoRoot, '.data', 'teams'));
+// Active only when a Twitch app is configured; otherwise tenants use the IRC reader.
+const twitchClientId = process.env['TWITCH_CLIENT_ID'];
+const twitchLink = twitchClientId ? buildTwitchLink(twitchClientId) : undefined;
+
 const hub = new Hub({
   ai,
   bus,
   makeStorage: (tenant) => new FileStorage(resolve(repoRoot, '.data', 'sessions', safeTenant(tenant))),
   makeSettingsStore: (tenant) =>
     new FileSettingsStore(resolve(repoRoot, '.data', 'settings', `${safeTenant(tenant)}.json`)),
+  twitchLink,
+  team,
 });
 
 const gateway = startGateway(config.wsPort, hub, bus);

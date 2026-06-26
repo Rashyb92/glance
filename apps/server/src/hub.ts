@@ -1,19 +1,25 @@
 import {
+  aggregateSessions,
   applyPlanLimits,
+  isTeamRole,
   PLANS,
+  type AnalyticsReport,
   type EngineSettings,
   type PlanId,
   type ScoredMessage,
   type SessionDetail,
   type SessionState,
   type SessionSummary,
+  type TeamMember,
 } from '@glance/core';
 import type { AIProvider } from '@glance/ai';
+import { TwitchEventSubAdapter, type PlatformAdapter } from '@glance/platforms';
 import { SessionController } from './session';
 import { SettingsService, type SettingsStore } from './settings-store';
 import type { Storage } from './storage';
 import type { Bus } from './bus';
 import { AiUsageMeter } from './ai-usage';
+import type { TeamStore } from './team-store';
 import { logger } from './logger';
 import { metrics } from './metrics';
 
@@ -36,6 +42,14 @@ export interface HubDeps {
   makeStorage: (tenant: string) => Storage;
   makeSettingsStore: (tenant: string) => SettingsStore;
   entitlements?: EntitlementResolver;
+  /** When set, tenants with a linked Twitch token read chat via EventSub (not IRC). */
+  twitchLink?: {
+    clientId: string;
+    hasToken: (tenant: string) => boolean;
+    getToken: (tenant: string) => Promise<string | null>;
+  };
+  /** Team roster store (gated to plans with `teamManagement`). */
+  team?: TeamStore;
 }
 
 /**
@@ -86,6 +100,26 @@ export class Hub {
   deleteByChannel(tenant: string, channel: string): number {
     return this.tenant(tenant).storage.deleteByChannel(channel);
   }
+  /** Cross-session analytics — gated to plans with `advancedAnalytics`. */
+  analytics(tenant: string): AnalyticsReport | null {
+    if (!PLANS[this.planId(tenant)].limits.advancedAnalytics) return null;
+    return aggregateSessions(this.tenant(tenant).storage.exportAll());
+  }
+
+  // --- team management (gated to plans with `teamManagement`) ---
+  listTeam(tenant: string): TeamMember[] | null {
+    if (!this.deps.team || !PLANS[this.planId(tenant)].limits.teamManagement) return null;
+    return this.deps.team.list(tenant);
+  }
+  inviteMember(tenant: string, email: string, role: string): TeamMember | { error: string } | null {
+    if (!this.deps.team || !PLANS[this.planId(tenant)].limits.teamManagement) return null;
+    if (!isTeamRole(role) || role === 'owner') return { error: 'invalid role' };
+    return this.deps.team.invite(tenant, email, role, PLANS[this.planId(tenant)].limits.seats);
+  }
+  removeMember(tenant: string, id: string): boolean | null {
+    if (!this.deps.team || !PLANS[this.planId(tenant)].limits.teamManagement) return null;
+    return this.deps.team.remove(tenant, id);
+  }
 
   /** Prune every loaded tenant's archives per its retention policy. */
   runRetention(now = Date.now()): void {
@@ -114,12 +148,23 @@ export class Hub {
     if (existing) return existing;
 
     const storage = this.deps.makeStorage(id);
+    const link = this.deps.twitchLink;
+    const makeTwitchAdapter = link
+      ? (channel: string): PlatformAdapter | null =>
+          link.hasToken(id)
+            ? new TwitchEventSubAdapter(channel, {
+                clientId: link.clientId,
+                getToken: () => link.getToken(id),
+              })
+            : null
+      : undefined;
     const controller = new SessionController({
       ai: this.deps.ai,
       storage,
       log: (message) => logger.info(message, { tenant: id }),
       // Meter AI calls against the tenant's plan cap.
       canUseAi: () => this.usage.tryConsume(id, PLANS[this.planId(id)].limits.aiCallsPerDay),
+      makeTwitchAdapter,
     });
     const settings = new SettingsService(this.deps.makeSettingsStore(id), (next) => {
       // Enforce the plan: clients and the engine only ever see clamped settings.

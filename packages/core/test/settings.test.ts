@@ -62,4 +62,26 @@ describe('normalizeEngineSettings', () => {
     expect(normalizeEngineSettings({ retentionDays: 99_999 }).retentionDays).toBe(3650);
     expect(normalizeEngineSettings({ storeMessageText: false }).storeMessageText).toBe(false);
   });
+
+  it('sanitizes branding (color, https-only logo, name length)', () => {
+    expect(normalizeEngineSettings({}).branding).toEqual(DEFAULT_ENGINE_SETTINGS.branding);
+    const s = normalizeEngineSettings({
+      branding: {
+        name: '  Acme Stream  ',
+        accentColor: '#abcdef',
+        logoUrl: 'https://cdn.example/logo.png',
+      },
+    });
+    expect(s.branding).toEqual({
+      name: 'Acme Stream',
+      accentColor: '#abcdef',
+      logoUrl: 'https://cdn.example/logo.png',
+    });
+    // rejects a bad color and a non-https logo (XSS guard)
+    const bad = normalizeEngineSettings({
+      branding: { accentColor: 'red', logoUrl: 'javascript:alert(1)' },
+    });
+    expect(bad.branding.accentColor).toBe('#7c5cff');
+    expect(bad.branding.logoUrl).toBe('');
+  });
 });

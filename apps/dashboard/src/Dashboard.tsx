@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState, type ReactNode } from 'react';
 import type {
   AudienceMood,
+  Branding,
   EngineSettings,
   MomentItem,
   OutputChannel,
@@ -12,6 +13,7 @@ import type {
 import { useStats, type ConnectionStatus } from './useStats';
 import { connectSession, disconnectSession, updateSettings } from './api';
 import { ReplayView } from './ReplayView';
+import { AnalyticsView } from './AnalyticsView';
 
 type Tone = 'gold' | 'blue' | 'indigo' | 'teal' | 'soft' | 'muted' | 'red';
 
@@ -51,7 +53,7 @@ const ROUTABLE: SalienceCategory[] = [
 
 export function Dashboard(): JSX.Element {
   const { status, stats, summary, ticker, session, settings, priorities } = useStats();
-  const [view, setView] = useState<'live' | 'replay'>('live');
+  const [view, setView] = useState<'live' | 'replay' | 'analytics'>('live');
   const channel = session?.channel ?? stats?.channel ?? 'glance';
 
   return (
@@ -75,6 +77,13 @@ export function Dashboard(): JSX.Element {
           >
             Replay
           </button>
+          <button
+            type="button"
+            className={view === 'analytics' ? 'on' : ''}
+            onClick={() => setView('analytics')}
+          >
+            Analytics
+          </button>
         </div>
         <div className="cc-meta">
           <span className="channel">#{channel}</span>
@@ -87,6 +96,8 @@ export function Dashboard(): JSX.Element {
 
       {view === 'replay' ? (
         <ReplayView />
+      ) : view === 'analytics' ? (
+        <AnalyticsView />
       ) : !stats ? (
         <div className="cc-empty">
           Waiting for the Glance server… start everything with <code>pnpm dev</code>.
@@ -315,6 +326,11 @@ function TuningCard({ settings }: { settings: EngineSettings | null }): JSX.Elem
   const [sensitivity, setSensitivity] = useState(0.5);
   const [retentionDays, setRetentionDays] = useState(30);
   const [storeText, setStoreText] = useState(true);
+  const [branding, setBranding] = useState<Branding>({
+    name: '',
+    accentColor: '#7c5cff',
+    logoUrl: '',
+  });
   const debounce = useRef<ReturnType<typeof setTimeout> | null>(null);
   const kwFocused = useRef(false);
 
@@ -329,12 +345,20 @@ function TuningCard({ settings }: { settings: EngineSettings | null }): JSX.Elem
     setSensitivity(settings.moderationSensitivity);
     setRetentionDays(settings.retentionDays);
     setStoreText(settings.storeMessageText);
+    setBranding(settings.branding);
     if (!kwFocused.current) setKeywords(settings.keywords.join(', '));
   }, [settings]);
 
   const push = (patch: Partial<EngineSettings>): void => {
     if (debounce.current) clearTimeout(debounce.current);
     debounce.current = setTimeout(() => void updateSettings(patch), 250);
+  };
+  const updateBranding = (patch: Partial<Branding>): void => {
+    setBranding((prev) => {
+      const next = { ...prev, ...patch };
+      push({ branding: next });
+      return next;
+    });
   };
   const commitKeywords = (): void => {
     const list = keywords
@@ -525,6 +549,37 @@ function TuningCard({ settings }: { settings: EngineSettings | null }): JSX.Elem
               setRetentionDays(v);
               push({ retentionDays: v });
             }}
+          />
+        </label>
+
+        <label className="tune-row">
+          <span>
+            Overlay branding <span className="hint-sm">Pro</span>
+          </span>
+          <input
+            className="tune-input"
+            type="text"
+            value={branding.name}
+            placeholder="Brand name shown on the overlay"
+            onChange={(e) => updateBranding({ name: e.target.value })}
+          />
+        </label>
+        <div className="tune-row">
+          <span>Accent color</span>
+          <input
+            type="color"
+            value={branding.accentColor}
+            onChange={(e) => updateBranding({ accentColor: e.target.value })}
+          />
+        </div>
+        <label className="tune-row">
+          <span>Logo URL (https)</span>
+          <input
+            className="tune-input"
+            type="text"
+            value={branding.logoUrl}
+            placeholder="https://…/logo.png"
+            onChange={(e) => updateBranding({ logoUrl: e.target.value })}
           />
         </label>
       </div>

@@ -1,11 +1,13 @@
 import { createServer, type IncomingMessage, type ServerResponse } from 'node:http';
 import { WebSocketServer, WebSocket } from 'ws';
 import type {
+  AnalyticsReport,
   EngineSettings,
   ScoredMessage,
   SessionDetail,
   SessionState,
   SessionSummary,
+  TeamMember,
 } from '@glance/core';
 import type { Bus } from './bus';
 import { resolveTenant } from './auth';
@@ -31,6 +33,14 @@ export interface GatewayControl {
   deleteReplay: (tenant: string, id: string) => void;
   exportAll: (tenant: string) => SessionDetail[];
   deleteByChannel: (tenant: string, channel: string) => number;
+  analytics: (tenant: string) => AnalyticsReport | null;
+  listTeam: (tenant: string) => TeamMember[] | null;
+  inviteMember: (
+    tenant: string,
+    email: string,
+    role: string,
+  ) => TeamMember | { error: string } | null;
+  removeMember: (tenant: string, id: string) => boolean | null;
 }
 
 export interface Gateway {
@@ -270,6 +280,40 @@ function handleHttp(
   }
   if (url === '/api/export') {
     if (req.method === 'GET') return send(200, control.exportAll(tenant));
+  }
+  if (url === '/api/analytics') {
+    if (req.method === 'GET') {
+      const report = control.analytics(tenant);
+      return send(report ? 200 : 403, report ?? { error: 'advanced analytics is not on your plan' });
+    }
+  }
+  if (url === '/api/team') {
+    if (req.method === 'GET') {
+      const members = control.listTeam(tenant);
+      return send(members ? 200 : 403, members ?? { error: 'team management is not on your plan' });
+    }
+    if (req.method === 'POST') {
+      readJson(req)
+        .then((body) => {
+          const result = control.inviteMember(
+            tenant,
+            typeof body['email'] === 'string' ? body['email'] : '',
+            typeof body['role'] === 'string' ? body['role'] : 'member',
+          );
+          if (result === null) return send(403, { error: 'team management is not on your plan' });
+          if ('error' in result) return send(400, result);
+          return send(200, result);
+        })
+        .catch((err: Error) => send(err.message === 'too_large' ? 413 : 400, { error: err.message }));
+      return;
+    }
+  }
+  if (url.startsWith('/api/team/')) {
+    const id = decodeURIComponent(url.slice('/api/team/'.length));
+    if (req.method === 'DELETE') {
+      const ok = control.removeMember(tenant, id);
+      return send(ok === null ? 403 : 200, ok === null ? { error: 'not on your plan' } : { ok });
+    }
   }
   if (url === '/api/sessions') {
     if (req.method === 'GET') return send(200, control.listSessions(tenant));

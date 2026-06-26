@@ -66,6 +66,7 @@ export class SettingsService {
       'moderationSensitivity',
       'retentionDays',
       'storeMessageText',
+      'branding',
     ];
     for (const key of keys) {
       if (key in p) merged[key] = p[key];

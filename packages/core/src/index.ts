@@ -10,3 +10,5 @@ export * from './replay';
 export * from './recorder';
 export * from './protocol';
 export * from './plans';
+export * from './analytics';
+export * from './team';

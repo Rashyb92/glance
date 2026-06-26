@@ -54,6 +54,8 @@ export function App(): JSX.Element {
   const [mode, setMode] = useState<InteractionMode>('hybrid');
   const [panelOpen, setPanelOpen] = useState(false);
   const topPriority = priorities[0];
+  const branding = settings?.branding;
+  const accentStyle = branding?.accentColor ? { color: branding.accentColor } : undefined;
 
   const threshold = settings?.surfaceThreshold ?? FALLBACK_THRESHOLD;
   const counts = DENSITY_COUNTS[overlay.density];
@@ -111,10 +113,21 @@ export function App(): JSX.Element {
       >
         <header className="hud-top">
           <div className="brand">
-            <span className="brand-mark" aria-hidden>
-              ◐
+            {branding?.logoUrl ? (
+              <img
+                className="brand-logo"
+                src={branding.logoUrl}
+                alt=""
+                style={{ height: 18, width: 'auto', borderRadius: 4 }}
+              />
+            ) : (
+              <span className="brand-mark" aria-hidden style={accentStyle}>
+                ◐
+              </span>
+            )}
+            <span className="brand-word" style={accentStyle}>
+              {branding?.name || 'GLANCE'}
             </span>
-            <span className="brand-word">GLANCE</span>
           </div>
           <div className="hud-meta">
             <span className="channel">{channelLabel}</span>

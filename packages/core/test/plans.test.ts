@@ -48,4 +48,17 @@ describe('plans / entitlements', () => {
     expect(PLANS.free.limits.aiCallsPerDay).toBeLessThan(PLANS.creator.limits.aiCallsPerDay);
     expect(PLANS.creator.limits.aiCallsPerDay).toBeLessThan(PLANS.pro.limits.aiCallsPerDay);
   });
+
+  it('resets branding on plans without branded overlays', () => {
+    const s = {
+      ...DEFAULT_ENGINE_SETTINGS,
+      branding: { name: 'Acme', accentColor: '#abcdef', logoUrl: 'https://x.test/a.png' },
+    };
+    expect(applyPlanLimits(s, 'free').branding).toEqual({
+      name: '',
+      accentColor: '#7c5cff',
+      logoUrl: '',
+    });
+    expect(applyPlanLimits(s, 'pro').branding).toEqual(s.branding);
+  });
 });

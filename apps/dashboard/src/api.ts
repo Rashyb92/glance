@@ -1,4 +1,4 @@
-import type { EngineSettings, SessionDetail, SessionSummary } from '@glance/core';
+import type { AnalyticsReport, EngineSettings, SessionDetail, SessionSummary } from '@glance/core';
 
 // Control-plane + replay calls to the Glance server. Live state (session/settings)
 // is echoed back over the WebSocket, so the mutating helpers ignore the body.
@@ -50,4 +50,10 @@ export async function deleteReplay(id: string): Promise<void> {
     method: 'DELETE',
     headers: headers(),
   });
+}
+
+/** Cross-session analytics. Returns null when the plan doesn't include it (403). */
+export async function getAnalytics(): Promise<AnalyticsReport | null> {
+  const r = await fetch(`${BASE}/api/analytics`, { headers: headers() });
+  return r.ok ? ((await r.json()) as AnalyticsReport) : null;
 }

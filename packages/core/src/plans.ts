@@ -1,4 +1,4 @@
-import type { EngineSettings, RoutingMatrix } from './settings';
+import { DEFAULT_BRANDING, type EngineSettings, type RoutingMatrix } from './settings';
 import type { SalienceCategory } from './types';
 
 /**
@@ -132,6 +132,7 @@ export function applyPlanLimits(settings: EngineSettings, planId: PlanId): Engin
     aiSummaries: settings.aiSummaries && hasAiBudget,
     aiPriorities: settings.aiPriorities && limits.aiPriorities && hasAiBudget,
     routing: limits.audioRouting ? settings.routing : stripAudio(settings.routing),
+    branding: limits.brandedOverlays ? settings.branding : { ...DEFAULT_BRANDING },
   };
 }
 

@@ -22,6 +22,8 @@ export interface SessionDeps {
   log: (message: string) => void;
   /** Gate for the AI usage cap — returns false when the daily budget is spent. */
   canUseAi?: () => boolean;
+  /** Optional factory for a live (EventSub) Twitch adapter; null → fall back to IRC. */
+  makeTwitchAdapter?: (channel: string) => PlatformAdapter | null;
 }
 
 /**
@@ -130,7 +132,11 @@ export class SessionController {
     this.priorityTimer = setInterval(() => void this.emitPriorities(), 9000);
 
     this.adapters = [];
-    if (ch) this.adapters.push(new TwitchAdapter(ch));
+    if (ch) {
+      // Prefer a live EventSub adapter when the tenant has linked Twitch; else IRC.
+      const live = this.deps.makeTwitchAdapter?.(ch) ?? null;
+      this.adapters.push(live ?? new TwitchAdapter(ch));
+    }
     if (demo || this.adapters.length === 0) this.adapters.push(new DemoAdapter(ch || 'glance_demo'));
     for (const adapter of this.adapters) {
       const handlers: AdapterHandlers = {

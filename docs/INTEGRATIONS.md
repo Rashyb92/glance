@@ -42,9 +42,10 @@ map short-lived (in-proc Map or the Bus for multi-instance).
 
 ### Chat ingestion per provider (the live read path)
 - **Twitch** — `user:read:chat` scope, then EventSub WebSocket subscription
-  `channel.chat.message`. This replaces anonymous IRC (already implemented in
-  `@glance/platforms` as `TwitchAdapter`); add a `TwitchEventSubAdapter` that uses
-  the stored user token. Same `PlatformAdapter` seam, so the engine is unchanged.
+  `channel.chat.message`. **Built**: `TwitchEventSubAdapter` in `@glance/platforms`.
+  The server (`Hub.twitchLink`) auto-selects it for any tenant that has a stored token
+  (refreshing near expiry); tenants without a token transparently use the IRC reader.
+  Set `TWITCH_CLIENT_ID` / `TWITCH_CLIENT_SECRET` and complete the OAuth flow to activate.
 - **YouTube** — `youtube.readonly`; resolve the active `liveChatId` from the
   broadcast, then poll `liveChatMessages.list` (honor `pollingIntervalMillis`) or use
   the streaming variant. New `YouTubeAdapter implements PlatformAdapter`.
@@ -115,7 +116,25 @@ it (self-host / dev), the Hub defaults every tenant to **Pro** (ungated). Unit-t
 
 ---
 
-## 3. Test plan (when credentials are in)
+## 3. Plan-gated platform features (shipped)
+
+These are built now and gated by plan entitlements in the Hub (Free/Creator → 403; Pro →
+feature). All are unit-tested.
+
+| Feature | Surface | Entitlement |
+|---------|---------|-------------|
+| Cross-session analytics | `GET /api/analytics` | `advancedAnalytics` |
+| Team management | `GET/POST/DELETE /api/team` | `teamManagement` |
+| Branded overlays | `branding` in engine settings | `brandedOverlays` |
+| AI usage | metered per tenant | `aiCallsPerDay` |
+
+Team invites enforce the plan's `seats` limit and validate email/role. Branding is
+sanitized (https-only logo, hex color) before it reaches the overlay. AI calls
+(summaries, priority re-ranking, recaps) are metered by the `AiUsageMeter`; over the
+daily cap the pipeline falls back to deterministic output. Per-member login (mapping a
+team member to a signed token) is the remaining piece.
+
+## 4. Test plan (when credentials are in)
 1. `pnpm verify` — unit tests for all of the above are already green.
 2. Twitch: run the `/start`→`/callback` round-trip against a test app; confirm an
    encrypted token file appears under `.data/tokens/`.

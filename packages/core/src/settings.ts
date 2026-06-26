@@ -17,6 +17,15 @@ export type OutputChannel = 'display' | 'voice' | 'earcon';
 /** Per-category output routing — which channels each salience category reaches. */
 export type RoutingMatrix = Partial<Record<SalienceCategory, OutputChannel[]>>;
 
+/** Custom overlay branding (gated to plans with `brandedOverlays`). */
+export interface Branding {
+  name: string;
+  accentColor: string; // #rrggbb
+  logoUrl: string; // https:// only
+}
+export const DEFAULT_ACCENT = '#7c5cff';
+export const DEFAULT_BRANDING: Branding = { name: '', accentColor: DEFAULT_ACCENT, logoUrl: '' };
+
 export interface EngineSettings {
   /** Salience cut-off for Hybrid surfacing and "high-salience" stats. 0..1. */
   surfaceThreshold: number;
@@ -38,6 +47,8 @@ export interface EngineSettings {
   retentionDays: number;
   /** Persist raw message text in archives. false = privacy mode (store only metadata). */
   storeMessageText: boolean;
+  /** Custom overlay branding (gated to plans with `brandedOverlays`). */
+  branding: Branding;
 }
 
 const ROUTABLE_CATEGORIES: SalienceCategory[] = [
@@ -82,6 +93,7 @@ export const DEFAULT_ENGINE_SETTINGS: EngineSettings = {
   moderationSensitivity: 0.5,
   retentionDays: 30,
   storeMessageText: true,
+  branding: { ...DEFAULT_BRANDING },
 };
 
 /** Validate and clamp arbitrary input into a safe {@link EngineSettings}. */
@@ -106,11 +118,27 @@ export function normalizeEngineSettings(input: unknown): EngineSettings {
       clamp(numberOr(obj['retentionDays'], 30), 0, ENGINE_SETTINGS_BOUNDS.maxRetentionDays),
     ),
     storeMessageText: boolOr(obj['storeMessageText'], true),
+    branding: sanitizeBranding(obj['branding']),
   };
 }
 
 function boolOr(value: unknown, fallback: boolean): boolean {
   return typeof value === 'boolean' ? value : fallback;
+}
+
+function sanitizeBranding(value: unknown): Branding {
+  const b = value && typeof value === 'object' ? (value as Record<string, unknown>) : {};
+  const name = typeof b['name'] === 'string' ? b['name'].trim().slice(0, 40) : '';
+  const accentColor =
+    typeof b['accentColor'] === 'string' && /^#[0-9a-fA-F]{6}$/.test(b['accentColor'])
+      ? b['accentColor']
+      : DEFAULT_ACCENT;
+  // Only https URLs — blocks javascript:/data: overlay injection.
+  const logoUrl =
+    typeof b['logoUrl'] === 'string' && /^https:\/\/[^\s"'<>]{1,300}$/.test(b['logoUrl'])
+      ? b['logoUrl']
+      : '';
+  return { name, accentColor, logoUrl };
 }
 
 function sanitizeRouting(value: unknown): RoutingMatrix {
