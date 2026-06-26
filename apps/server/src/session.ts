@@ -22,11 +22,13 @@ export interface SessionDeps {
   storage: Storage;
   log: (message: string) => void;
   /** Gate for the AI usage cap — returns false when the daily budget is spent. */
-  canUseAi?: () => boolean;
+  canUseAi?: () => boolean | Promise<boolean>;
   /** Optional factory for a live (EventSub) Twitch adapter; null → fall back to IRC. */
   makeTwitchAdapter?: (channel: string) => PlatformAdapter | null;
   /** Optional factory for a YouTube adapter (needs a linked token); null → demo. */
   makeYouTubeAdapter?: (channel: string) => PlatformAdapter | null;
+  /** Optional live viewer-count fetcher per platform. */
+  fetchViewers?: (platform: Platform, channel: string) => Promise<number | null>;
 }
 
 /**
@@ -41,6 +43,7 @@ export class SessionController {
   private adapters: PlatformAdapter[] = [];
   private statsTimer: NodeJS.Timeout | null = null;
   private priorityTimer: NodeJS.Timeout | null = null;
+  private viewerTimer: NodeJS.Timeout | null = null;
   private prioritizing = false;
   private aiPriorities = true;
   private readonly persisting = new Set<Promise<void>>();
@@ -50,6 +53,7 @@ export class SessionController {
     connected: false,
     platform: null,
     since: null,
+    viewers: null,
   };
   private broadcast: (message: ServerMessage) => void = () => {};
   private settings: EngineSettings = DEFAULT_ENGINE_SETTINGS;
@@ -136,6 +140,8 @@ export class SessionController {
       this.broadcast({ type: 'stats', data: snap });
     }, 2000);
     this.priorityTimer = setInterval(() => void this.emitPriorities(), 9000);
+    this.viewerTimer = setInterval(() => void this.pollViewers(), 20000);
+    void this.pollViewers();
 
     this.adapters = [];
     if (live) this.adapters.push(live);
@@ -153,7 +159,7 @@ export class SessionController {
       adapter.start(handlers);
     }
 
-    this.state = { channel: ch || null, demo, connected: false, platform, since: Date.now() };
+    this.state = { channel: ch || null, demo, connected: false, platform, since: Date.now(), viewers: null };
     metrics.inc('glance_sessions_started_total');
     this.broadcast({ type: 'session', data: this.state });
     return this.state;
@@ -167,6 +173,7 @@ export class SessionController {
       connected: false,
       platform: null,
       since: null,
+      viewers: null,
     };
     this.broadcast({ type: 'session', data: this.state });
     return this.state;
@@ -198,7 +205,8 @@ export class SessionController {
     const top = recorder.topMoments(8);
     const task = (async () => {
       let recap: ChatSummary | null = null;
-      if (top.length > 0 && (!this.deps.canUseAi || this.deps.canUseAi())) {
+      const aiAllowed = !this.deps.canUseAi || (await this.deps.canUseAi());
+      if (top.length > 0 && aiAllowed) {
         try {
           recap = await this.deps.ai.summarize({ channel: recorder.channel, recent: top });
         } catch (err) {
@@ -229,7 +237,7 @@ export class SessionController {
       .snapshot(50)
       .filter((m) => m.score >= this.settings.surfaceThreshold);
     if (candidates.length === 0) return;
-    if (this.deps.canUseAi && !this.deps.canUseAi()) return; // daily AI cap reached
+    if (this.deps.canUseAi && !(await this.deps.canUseAi())) return; // daily AI cap reached
     this.prioritizing = true;
     try {
       const priorities = await this.deps.ai.prioritize({
@@ -242,6 +250,23 @@ export class SessionController {
       metrics.inc('glance_ai_errors_total');
     } finally {
       this.prioritizing = false;
+    }
+  }
+
+  /** Poll the platform for the live viewer count and broadcast on change. */
+  private async pollViewers(): Promise<void> {
+    const { platform, channel, demo } = this.state;
+    let viewers: number | null = null;
+    if (demo || !channel || !platform || platform === 'demo') {
+      // Simulated for the demo feed so dev shows a live-looking "watching" number.
+      const chatters = this.stats?.snapshot().chatters ?? 5;
+      viewers = Math.max(0, Math.round((chatters + 4) * 11 + (Math.random() - 0.5) * 24));
+    } else if (this.deps.fetchViewers) {
+      viewers = await this.deps.fetchViewers(platform, channel);
+    }
+    if (viewers !== this.state.viewers) {
+      this.state = { ...this.state, viewers };
+      this.broadcast({ type: 'session', data: this.state });
     }
   }
 
@@ -264,6 +289,10 @@ export class SessionController {
     if (this.priorityTimer) {
       clearInterval(this.priorityTimer);
       this.priorityTimer = null;
+    }
+    if (this.viewerTimer) {
+      clearInterval(this.viewerTimer);
+      this.viewerTimer = null;
     }
     this.engine?.stop();
     this.engine = null;

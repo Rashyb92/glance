@@ -129,4 +129,6 @@ export interface SessionState {
   connected: boolean;
   platform: Platform | null;
   since: number | null;
+  /** Live concurrent viewers from the platform, or null if unknown. */
+  viewers: number | null;
 }

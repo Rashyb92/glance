@@ -10,7 +10,7 @@ export interface EngineOptions {
   summaryIntervalMs: number;
   onItem: (item: HudItem) => void;
   /** Gate for the AI usage cap — returns false when the tenant's daily budget is spent. */
-  canUseAi?: () => boolean;
+  canUseAi?: () => boolean | Promise<boolean>;
 }
 
 /**
@@ -93,7 +93,7 @@ export class GlanceEngine {
 
   private async emitSummary(): Promise<void> {
     if (!this.summariesEnabled || this.summarizing || this.recent.length === 0) return;
-    if (this.opts.canUseAi && !this.opts.canUseAi()) return; // daily AI cap reached
+    if (this.opts.canUseAi && !(await this.opts.canUseAi())) return; // daily AI cap reached
     this.summarizing = true;
     try {
       const summary = await this.opts.ai.summarize({

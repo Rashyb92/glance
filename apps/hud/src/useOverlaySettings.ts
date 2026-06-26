@@ -13,6 +13,8 @@ export interface OverlaySettings {
   audio: boolean;
   /** Output volume, 0..1. */
   volume: number;
+  /** Earbud mode: audio-first, minimal screen (for a phone in a pocket). */
+  audioMode: boolean;
 }
 
 const STORAGE_KEY = 'glance.overlay.v1';
@@ -25,6 +27,7 @@ const DEFAULTS: OverlaySettings = {
   motion: true,
   audio: false,
   volume: 0.8,
+  audioMode: false,
 };
 
 function clamp(n: number, lo: number, hi: number): number {
@@ -44,6 +47,7 @@ function normalize(input: unknown): OverlaySettings {
     motion: o['motion'] !== false,
     audio: o['audio'] === true,
     volume: clamp(typeof o['volume'] === 'number' ? o['volume'] : 0.8, 0, 1),
+    audioMode: o['audioMode'] === true,
   };
 }
 

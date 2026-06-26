@@ -11,6 +11,7 @@ import type {
   TeamMember,
 } from '@glance/core';
 import type { Bus } from './bus';
+import type { PushSubscription } from './push-store';
 import { resolveTenant } from './auth';
 import { RateLimiter } from './ratelimit';
 import { logger } from './logger';
@@ -42,6 +43,13 @@ export interface GatewayControl {
     role: string,
   ) => TeamMember | { error: string } | null;
   removeMember: (tenant: string, id: string) => boolean | null;
+  listPush: (tenant: string) => PushSubscription[];
+  subscribePush: (
+    tenant: string,
+    platform: string,
+    endpoint: string,
+  ) => PushSubscription | { error: string };
+  removePush: (tenant: string, id: string) => boolean;
 }
 
 export interface Gateway {
@@ -315,6 +323,28 @@ function handleHttp(
       const ok = control.removeMember(tenant, id);
       return send(ok === null ? 403 : 200, ok === null ? { error: 'not on your plan' } : { ok });
     }
+  }
+  if (url === '/api/push') {
+    if (req.method === 'GET') return send(200, control.listPush(tenant));
+  }
+  if (url === '/api/push/subscribe') {
+    if (req.method === 'POST') {
+      readJson(req)
+        .then((body) => {
+          const result = control.subscribePush(
+            tenant,
+            typeof body['platform'] === 'string' ? body['platform'] : '',
+            typeof body['endpoint'] === 'string' ? body['endpoint'] : '',
+          );
+          return send('error' in result ? 400 : 200, result);
+        })
+        .catch((err: Error) => send(err.message === 'too_large' ? 413 : 400, { error: err.message }));
+      return;
+    }
+  }
+  if (url.startsWith('/api/push/') && url !== '/api/push/subscribe') {
+    const id = decodeURIComponent(url.slice('/api/push/'.length));
+    if (req.method === 'DELETE') return send(200, { ok: control.removePush(tenant, id) });
   }
   if (url === '/api/sessions') {
     if (req.method === 'GET') return send(200, control.listSessions(tenant));

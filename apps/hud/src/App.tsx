@@ -10,6 +10,7 @@ import type {
 import { useGlanceFeed, type ConnectionStatus } from './useGlanceFeed';
 import { useOverlaySettings, type OverlaySettings } from './useOverlaySettings';
 import { earcon, speak } from './audio';
+import { useBattery, type BatteryState } from './useBattery';
 
 // Fallback until the server broadcasts its live engine threshold.
 const FALLBACK_THRESHOLD = 0.5;
@@ -56,6 +57,9 @@ export function App(): JSX.Element {
   const topPriority = priorities[0];
   const branding = settings?.branding;
   const accentStyle = branding?.accentColor ? { color: branding.accentColor } : undefined;
+  const battery = useBattery();
+  const [heard, setHeard] = useState<string[]>([]);
+  const viewers = session?.viewers ?? null;
 
   const threshold = settings?.surfaceThreshold ?? FALLBACK_THRESHOLD;
   const counts = DENSITY_COUNTS[overlay.density];
@@ -82,7 +86,11 @@ export function App(): JSX.Element {
         overlay.volume,
       );
     }
-    if (channels.includes('voice')) speak(`${p.author ?? 'chat'} says ${p.text}`, overlay.volume);
+    if (channels.includes('voice')) {
+      const line = `${p.author ?? 'chat'} says ${p.text}`;
+      speak(line, overlay.volume, true); // priorities interrupt the backlog
+      setHeard((h) => [line, ...h].slice(0, 8));
+    }
   }, [priorities, overlay.audio, overlay.volume, settings]);
 
   useEffect(() => {
@@ -92,7 +100,10 @@ export function App(): JSX.Element {
     lastEventId.current = e.event.id;
     const channels = settings?.routing?.event ?? [];
     if (channels.includes('earcon')) earcon('event', overlay.volume);
-    if (channels.includes('voice')) speak(e.event.summary, overlay.volume);
+    if (channels.includes('voice')) {
+      speak(e.event.summary, overlay.volume);
+      setHeard((h) => [e.event.summary, ...h].slice(0, 8));
+    }
   }, [events, overlay.audio, overlay.volume, settings]);
 
   const channelLabel = session?.channel
@@ -101,6 +112,22 @@ export function App(): JSX.Element {
       ? 'demo feed'
       : `#${messages.at(-1)?.message.channel ?? 'glance'}`;
   const showSummary = mode !== 'raw' && summary !== null;
+
+  // Earbud mode: an audio-first, minimal screen (phone in a pocket, one earbud in).
+  if (overlay.audioMode) {
+    return (
+      <AudioStage
+        overlay={overlay}
+        setOverlay={setOverlay}
+        brandName={branding?.name || 'GLANCE'}
+        accentStyle={accentStyle}
+        status={status}
+        viewers={viewers}
+        battery={battery}
+        heard={heard}
+      />
+    );
+  }
 
   return (
     <div className="stage">
@@ -130,8 +157,15 @@ export function App(): JSX.Element {
             </span>
           </div>
           <div className="hud-meta">
+            {viewers != null && <span className="viewers">{formatCount(viewers)} watching</span>}
             <span className="channel">{channelLabel}</span>
             <StatusDot status={status} />
+            {battery.level != null && (
+              <span className="battery" title={battery.charging ? 'charging' : 'battery'}>
+                {battery.charging ? '⚡' : ''}
+                {Math.round(battery.level * 100)}%
+              </span>
+            )}
             <button
               type="button"
               className="gear"
@@ -306,6 +340,21 @@ function OverlayPanel({
           />
         </label>
       )}
+      <div className="panel-row">
+        <span>Earbud mode</span>
+        <button
+          type="button"
+          className={`toggle ${settings.audioMode ? 'on' : ''}`}
+          onClick={() =>
+            update({
+              audioMode: !settings.audioMode,
+              audio: settings.audioMode ? settings.audio : true,
+            })
+          }
+        >
+          {settings.audioMode ? 'On' : 'Off'}
+        </button>
+      </div>
     </div>
   );
 }
@@ -384,4 +433,162 @@ function SummaryCard({ summary }: { summary: ChatSummary }): JSX.Element {
       )}
     </article>
   );
+}
+
+function AudioStage({
+  overlay,
+  setOverlay,
+  brandName,
+  accentStyle,
+  status,
+  viewers,
+  battery,
+  heard,
+}: {
+  overlay: OverlaySettings;
+  setOverlay: (patch: Partial<OverlaySettings>) => void;
+  brandName: string;
+  accentStyle: { color: string } | undefined;
+  status: ConnectionStatus;
+  viewers: number | null;
+  battery: BatteryState;
+  heard: string[];
+}): JSX.Element {
+  const accent = accentStyle?.color ?? '#7c5cff';
+  return (
+    <div
+      style={{
+        position: 'fixed',
+        inset: 0,
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        padding: 24,
+        background: 'radial-gradient(120% 120% at 50% 0%, #14141c 0%, #0a0a0f 70%)',
+        color: '#e8e8f0',
+      }}
+    >
+      <div
+        style={{
+          width: 'min(440px, 94vw)',
+          display: 'flex',
+          flexDirection: 'column',
+          alignItems: 'center',
+          gap: 18,
+        }}
+      >
+        <div
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            width: '100%',
+            fontSize: 13,
+            opacity: 0.85,
+          }}
+        >
+          <span className="brand-word" style={accentStyle}>
+            {brandName}
+          </span>
+          <span style={{ display: 'flex', gap: 12, alignItems: 'center' }}>
+            {viewers != null && <span>{formatCount(viewers)} watching</span>}
+            <StatusDot status={status} />
+            {battery.level != null && (
+              <span>
+                {battery.charging ? '⚡' : ''}
+                {Math.round(battery.level * 100)}%
+              </span>
+            )}
+          </span>
+        </div>
+
+        <button
+          type="button"
+          onClick={() => setOverlay({ audio: !overlay.audio })}
+          aria-pressed={overlay.audio}
+          style={{
+            width: 168,
+            height: 168,
+            borderRadius: '50%',
+            border: `2px solid ${overlay.audio ? accent : '#3a3a44'}`,
+            background: overlay.audio ? `${accent}22` : 'transparent',
+            color: overlay.audio ? '#fff' : '#9a9aa6',
+            fontSize: 18,
+            cursor: 'pointer',
+            boxShadow: overlay.audio ? `0 0 40px ${accent}55` : 'none',
+          }}
+        >
+          {overlay.audio ? 'Listening' : 'Muted'}
+        </button>
+
+        <label
+          style={{ width: '100%', display: 'flex', flexDirection: 'column', gap: 6, fontSize: 13 }}
+        >
+          <span>Volume {Math.round(overlay.volume * 100)}%</span>
+          <input
+            type="range"
+            min={0}
+            max={1}
+            step={0.05}
+            value={overlay.volume}
+            onChange={(e) => setOverlay({ volume: Number(e.target.value) })}
+          />
+        </label>
+
+        <div style={{ width: '100%' }}>
+          <div
+            style={{
+              fontSize: 11,
+              textTransform: 'uppercase',
+              letterSpacing: 1,
+              opacity: 0.5,
+              marginBottom: 6,
+            }}
+          >
+            Last heard
+          </div>
+          {heard.length === 0 ? (
+            <p className="hint">Nothing yet — callouts will be spoken aloud.</p>
+          ) : (
+            heard.map((line, i) => (
+              <div
+                key={i}
+                style={{
+                  fontSize: 14,
+                  padding: '6px 0',
+                  borderBottom: '1px solid #ffffff10',
+                  opacity: 1 - i * 0.1,
+                }}
+              >
+                {line}
+              </div>
+            ))
+          )}
+        </div>
+
+        <button
+          type="button"
+          onClick={() => setOverlay({ audioMode: false })}
+          style={{
+            marginTop: 4,
+            background: 'transparent',
+            border: '1px solid #3a3a44',
+            color: '#c8c8d2',
+            borderRadius: 8,
+            padding: '8px 14px',
+            cursor: 'pointer',
+          }}
+        >
+          Exit earbud mode
+        </button>
+        <p style={{ fontSize: 12, opacity: 0.5, textAlign: 'center', margin: 0 }}>
+          Screen can sleep — keep this open with one earbud in.
+        </p>
+      </div>
+    </div>
+  );
+}
+
+function formatCount(n: number): string {
+  return n >= 1000 ? `${(n / 1000).toFixed(1)}k` : String(n);
 }

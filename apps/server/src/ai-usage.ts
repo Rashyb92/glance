@@ -1,3 +1,14 @@
+import type { RedisCounters } from './redis';
+
+/**
+ * A daily AI-usage meter — in-memory ({@link AiUsageMeter}) or Redis-backed
+ * ({@link RedisUsageMeter}). Async-tolerant so either implementation backs the same
+ * call site (`canUseAi`).
+ */
+export interface UsageMeter {
+  tryConsume(tenant: string, cap: number, now?: Date): boolean | Promise<boolean>;
+}
+
 /**
  * Per-tenant daily AI-call meter — the enforcement behind a plan's `aiCallsPerDay`
  * cap. Each AI call (summary, priority re-rank, recap) consumes one unit; once the
@@ -31,5 +42,26 @@ export class AiUsageMeter {
       this.day = day;
       this.counts.clear();
     }
+  }
+}
+
+/**
+ * Redis-backed daily AI-usage meter — the multi-instance counterpart of {@link AiUsageMeter}.
+ * An atomic INCR on a per-tenant, per-day key (with a TTL) enforces the cap fleet-wide,
+ * regardless of which worker serves the tenant.
+ */
+export class RedisUsageMeter {
+  constructor(
+    private readonly redis: RedisCounters,
+    private readonly prefix = 'glance:ai',
+  ) {}
+
+  async tryConsume(tenant: string, cap: number, now: Date = new Date()): Promise<boolean> {
+    if (cap <= 0) return false;
+    const day = now.toISOString().slice(0, 10);
+    const key = `${this.prefix}:${tenant}:${day}`;
+    const n = await this.redis.incr(key);
+    if (n === 1) await this.redis.pExpire(key, 36 * 60 * 60 * 1000); // ~1.5 days (TZ-safe)
+    return n <= cap;
   }
 }

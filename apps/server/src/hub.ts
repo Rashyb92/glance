@@ -19,8 +19,10 @@ import { SessionController } from './session';
 import { SettingsService, type SettingsStore } from './settings-store';
 import type { Storage } from './storage';
 import type { Bus } from './bus';
-import { AiUsageMeter } from './ai-usage';
+import { AiUsageMeter, type UsageMeter } from './ai-usage';
 import type { TeamStore } from './team-store';
+import type { PushStore, PushSubscription } from './push-store';
+import { kickViewers, twitchViewers, youtubeViewers } from './viewers';
 import { logger } from './logger';
 import { metrics } from './metrics';
 
@@ -56,6 +58,10 @@ export interface HubDeps {
   };
   /** Team roster store (gated to plans with `teamManagement`). */
   team?: TeamStore;
+  /** Device registry for push notifications (wearables / phone companion). */
+  push?: PushStore;
+  /** AI usage meter — defaults to in-memory; pass a RedisUsageMeter for multi-instance. */
+  usage?: UsageMeter;
 }
 
 /**
@@ -66,9 +72,10 @@ export interface HubDeps {
  */
 export class Hub {
   private readonly tenants = new Map<string, Tenant>();
-  private readonly usage = new AiUsageMeter();
+  private readonly usage: UsageMeter;
 
   constructor(private readonly deps: HubDeps) {
+    this.usage = deps.usage ?? new AiUsageMeter();
     metrics.gauge('glance_tenants', () => this.tenants.size);
   }
 
@@ -127,6 +134,23 @@ export class Hub {
     return this.deps.team.remove(tenant, id);
   }
 
+  // --- push notifications (wearables / companion) — available to all plans ---
+  listPush(tenant: string): PushSubscription[] {
+    return this.deps.push ? this.deps.push.list(tenant) : [];
+  }
+  subscribePush(
+    tenant: string,
+    platform: string,
+    endpoint: string,
+  ): PushSubscription | { error: string } {
+    return this.deps.push
+      ? this.deps.push.subscribe(tenant, platform, endpoint)
+      : { error: 'push unavailable' };
+  }
+  removePush(tenant: string, id: string): boolean {
+    return this.deps.push ? this.deps.push.remove(tenant, id) : false;
+  }
+
   /** Prune every loaded tenant's archives per its retention policy. */
   runRetention(now = Date.now()): void {
     for (const t of this.tenants.values()) {
@@ -147,6 +171,23 @@ export class Hub {
 
   private planId(tenant: string): PlanId {
     return this.deps.entitlements?.getPlan(tenant) ?? 'pro';
+  }
+
+  private async fetchViewers(
+    tenant: string,
+    platform: Platform,
+    channel: string,
+  ): Promise<number | null> {
+    if (platform === 'kick') return kickViewers(channel);
+    if (platform === 'twitch' && this.deps.twitchLink) {
+      const token = await this.deps.twitchLink.getToken(tenant);
+      return token ? twitchViewers(channel, this.deps.twitchLink.clientId, token) : null;
+    }
+    if (platform === 'youtube' && this.deps.youtubeLink) {
+      const token = await this.deps.youtubeLink.getToken(tenant);
+      return token ? youtubeViewers(token) : null;
+    }
+    return null;
   }
 
   private tenant(id: string): Tenant {
@@ -179,6 +220,7 @@ export class Hub {
       canUseAi: () => this.usage.tryConsume(id, PLANS[this.planId(id)].limits.aiCallsPerDay),
       makeTwitchAdapter,
       makeYouTubeAdapter,
+      fetchViewers: (platform, channel) => this.fetchViewers(id, platform, channel),
     });
     const settings = new SettingsService(this.deps.makeSettingsStore(id), (next) => {
       // Enforce the plan: clients and the engine only ever see clamped settings.

@@ -114,6 +114,7 @@ export function Dashboard(): JSX.Element {
                 <span className="mood-sentiment">{formatSentiment(stats.sentiment)}</span>
               </div>
               <div className="pulse-stats">
+                <Stat label="Watching" value={session?.viewers ?? '—'} />
                 <Stat label="Chatters" value={stats.chatters} />
                 <Stat label="Msgs / min" value={stats.messagesPerMin} />
                 <Stat label="Questions" value={stats.questionsWaiting} />

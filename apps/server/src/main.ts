@@ -11,6 +11,8 @@ import { OAuthService } from './integrations/oauth-service';
 import { TokenStore } from './integrations/oauth-token-store';
 import type { ProviderId } from './integrations/oauth-providers';
 import { TeamStore } from './team-store';
+import { PushStore } from './push-store';
+import { DefaultPushProvider, Notifier } from './push';
 import { logger } from './logger';
 
 // Refuse to boot in production without auth: with no secret every client collapses
@@ -57,6 +59,13 @@ function tokenAccessor(provider: ProviderId) {
 
 const bus = new InProcessBus();
 const team = new TeamStore(resolve(repoRoot, '.data', 'teams'));
+const push = new PushStore(resolve(repoRoot, '.data', 'push'));
+
+// Push the highest-signal moments (priority callouts, channel events) to each tenant's
+// registered devices — the wearables / phone-companion render target.
+const notifier = new Notifier(push, new DefaultPushProvider((m) => logger.info(m)));
+bus.subscribe((tenant, message) => notifier.consider(tenant, message));
+
 // Live readers activate when the matching app is configured; otherwise tenants fall
 // back to IRC (Twitch) or the demo feed.
 const twitchClientId = process.env['TWITCH_CLIENT_ID'];
@@ -74,6 +83,7 @@ const hub = new Hub({
   twitchLink,
   youtubeLink,
   team,
+  push,
 });
 
 const gateway = startGateway(config.wsPort, hub, bus);
