@@ -13,3 +13,4 @@ export * from './plans';
 export * from './analytics';
 export * from './team';
 export * from './push';
+export * from './eval';
