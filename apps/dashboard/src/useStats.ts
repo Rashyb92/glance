@@ -1,5 +1,11 @@
 import { useEffect, useRef, useState } from 'react';
-import type { ChatSummary, DashboardStats, ScoredMessage, ServerMessage } from '@glance/core';
+import type {
+  ChatSummary,
+  DashboardStats,
+  ScoredMessage,
+  ServerMessage,
+  SessionState,
+} from '@glance/core';
 
 export type ConnectionStatus = 'connecting' | 'online' | 'offline';
 
@@ -8,18 +14,20 @@ export interface DashState {
   stats: DashboardStats | null;
   summary: ChatSummary | null;
   ticker: ScoredMessage[];
+  session: SessionState | null;
 }
 
 const WS_PORT = (import.meta.env['VITE_GLANCE_WS'] as string | undefined) ?? '8787';
 const WS_URL = `ws://localhost:${WS_PORT}`;
 
-/** Subscribes to the gateway and exposes the latest dashboard stats, AI summary
- *  and a small ticker of high-salience messages. Auto-reconnects. */
+/** Subscribes to the gateway and exposes the latest dashboard stats, AI summary,
+ *  session state and a small ticker of high-salience messages. Auto-reconnects. */
 export function useStats(): DashState {
   const [status, setStatus] = useState<ConnectionStatus>('connecting');
   const [stats, setStats] = useState<DashboardStats | null>(null);
   const [summary, setSummary] = useState<ChatSummary | null>(null);
   const [ticker, setTicker] = useState<ScoredMessage[]>([]);
+  const [session, setSession] = useState<SessionState | null>(null);
   const wsRef = useRef<WebSocket | null>(null);
 
   useEffect(() => {
@@ -50,6 +58,9 @@ export function useStats(): DashState {
           case 'summary':
             setSummary(msg.data);
             break;
+          case 'session':
+            setSession(msg.data);
+            break;
           case 'message':
             if (msg.data.score >= 0.5) setTicker((p) => [msg.data, ...p].slice(0, 8));
             break;
@@ -67,5 +78,5 @@ export function useStats(): DashState {
     };
   }, []);
 
-  return { status, stats, summary, ticker };
+  return { status, stats, summary, ticker, session };
 }

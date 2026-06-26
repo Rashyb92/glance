@@ -1,5 +1,11 @@
 import { useEffect, useRef, useState } from 'react';
-import type { ChannelEvent, ChatSummary, HudItem, ScoredMessage } from '@glance/core';
+import type {
+  ChannelEvent,
+  ChatSummary,
+  ScoredMessage,
+  ServerMessage,
+  SessionState,
+} from '@glance/core';
 
 export type ConnectionStatus = 'connecting' | 'online' | 'offline';
 
@@ -13,14 +19,13 @@ export interface FeedState {
   messages: ScoredMessage[];
   events: FeedEvent[];
   summary: ChatSummary | null;
+  session: SessionState | null;
 }
 
 const WS_PORT = (import.meta.env['VITE_GLANCE_WS'] as string | undefined) ?? '8787';
 const WS_URL = `ws://localhost:${WS_PORT}`;
 const MAX_MESSAGES = 80;
 const MAX_EVENTS = 8;
-
-type Wire = HudItem | { type: 'hello'; data: { ts: number } };
 
 /**
  * Subscribes to the Glance server's scored feed over WebSocket, with automatic
@@ -32,6 +37,7 @@ export function useGlanceFeed(): FeedState {
   const [messages, setMessages] = useState<ScoredMessage[]>([]);
   const [events, setEvents] = useState<FeedEvent[]>([]);
   const [summary, setSummary] = useState<ChatSummary | null>(null);
+  const [session, setSession] = useState<SessionState | null>(null);
   const wsRef = useRef<WebSocket | null>(null);
 
   useEffect(() => {
@@ -50,21 +56,24 @@ export function useGlanceFeed(): FeedState {
         if (!closedByUs) retry = setTimeout(connect, 1500);
       };
       ws.onmessage = (ev: MessageEvent) => {
-        let wire: Wire;
+        let msg: ServerMessage;
         try {
-          wire = JSON.parse(ev.data as string) as Wire;
+          msg = JSON.parse(ev.data as string) as ServerMessage;
         } catch {
           return;
         }
-        switch (wire.type) {
+        switch (msg.type) {
           case 'message':
-            setMessages((prev) => [...prev, wire.data].slice(-MAX_MESSAGES));
+            setMessages((prev) => [...prev, msg.data].slice(-MAX_MESSAGES));
             break;
           case 'event':
-            setEvents((prev) => [{ event: wire.data, score: wire.score }, ...prev].slice(0, MAX_EVENTS));
+            setEvents((prev) => [{ event: msg.data, score: msg.score }, ...prev].slice(0, MAX_EVENTS));
             break;
           case 'summary':
-            setSummary(wire.data);
+            setSummary(msg.data);
+            break;
+          case 'session':
+            setSession(msg.data);
             break;
           default:
             break;
@@ -80,5 +89,5 @@ export function useGlanceFeed(): FeedState {
     };
   }, []);
 
-  return { status, messages, events, summary };
+  return { status, messages, events, summary, session };
 }

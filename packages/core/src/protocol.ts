@@ -1,4 +1,4 @@
-import type { HudItem } from './types';
+import type { HudItem, SessionState } from './types';
 import type { DashboardStats } from './stats';
 
 /**
@@ -8,4 +8,5 @@ import type { DashboardStats } from './stats';
 export type ServerMessage =
   | HudItem
   | { type: 'stats'; data: DashboardStats }
+  | { type: 'session'; data: SessionState }
   | { type: 'hello'; data: { ts: number } };

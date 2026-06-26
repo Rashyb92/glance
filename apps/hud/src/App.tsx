@@ -41,7 +41,7 @@ const MODE_LABEL: Record<InteractionMode, string> = {
 };
 
 export function App(): JSX.Element {
-  const { status, messages, events, summary } = useGlanceFeed();
+  const { status, messages, events, summary, session } = useGlanceFeed();
   const [mode, setMode] = useState<InteractionMode>('hybrid');
 
   const surfaced = useMemo(() => {
@@ -50,7 +50,11 @@ export function App(): JSX.Element {
     return messages.filter((m) => m.score >= SURFACE_THRESHOLD).slice(-9);
   }, [messages, mode]);
 
-  const channel = messages.at(-1)?.message.channel ?? 'glance';
+  const channelLabel = session?.channel
+    ? `#${session.channel}`
+    : session?.demo
+      ? 'demo feed'
+      : `#${messages.at(-1)?.message.channel ?? 'glance'}`;
   const showSummary = mode !== 'raw' && summary !== null;
 
   return (
@@ -67,7 +71,7 @@ export function App(): JSX.Element {
             <span className="brand-word">GLANCE</span>
           </div>
           <div className="hud-meta">
-            <span className="channel">#{channel}</span>
+            <span className="channel">{channelLabel}</span>
             <StatusDot status={status} />
           </div>
         </header>

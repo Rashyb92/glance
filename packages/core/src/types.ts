@@ -104,3 +104,13 @@ export type HudItem =
   | { type: 'message'; data: ScoredMessage }
   | { type: 'event'; data: ChannelEvent; score: number }
   | { type: 'summary'; data: ChatSummary };
+
+/** The current live session — which channel Glance is listening to, and whether
+ *  the source is connected. Broadcast to every client so the UI stays in sync. */
+export interface SessionState {
+  channel: string | null;
+  demo: boolean;
+  connected: boolean;
+  platform: Platform | null;
+  since: number | null;
+}

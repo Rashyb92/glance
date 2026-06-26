@@ -1,6 +1,7 @@
-import type { ReactNode } from 'react';
-import type { AudienceMood, MomentItem, SalienceCategory } from '@glance/core';
+import { useEffect, useState, type ReactNode } from 'react';
+import type { AudienceMood, MomentItem, SalienceCategory, SessionState } from '@glance/core';
 import { useStats, type ConnectionStatus } from './useStats';
+import { connectSession, disconnectSession } from './api';
 
 type Tone = 'gold' | 'blue' | 'indigo' | 'teal' | 'soft' | 'muted' | 'red';
 
@@ -29,8 +30,8 @@ const CATEGORY_TONE: Record<SalienceCategory, Tone> = {
 };
 
 export function Dashboard(): JSX.Element {
-  const { status, stats, summary, ticker } = useStats();
-  const channel = stats?.channel ?? 'glance';
+  const { status, stats, summary, ticker, session } = useStats();
+  const channel = session?.channel ?? stats?.channel ?? 'glance';
 
   return (
     <div className="cc">
@@ -48,6 +49,8 @@ export function Dashboard(): JSX.Element {
           <Status status={status} />
         </div>
       </header>
+
+      <ConnectBar session={session} />
 
       {!stats ? (
         <div className="cc-empty">
@@ -164,6 +167,76 @@ export function Dashboard(): JSX.Element {
           </Card>
         </main>
       )}
+    </div>
+  );
+}
+
+function ConnectBar({ session }: { session: SessionState | null }): JSX.Element {
+  const [channel, setChannel] = useState('');
+  const [demo, setDemo] = useState(true);
+  const [busy, setBusy] = useState(false);
+
+  // Seed the controls from the live session once it arrives.
+  useEffect(() => {
+    if (!session) return;
+    setChannel(session.channel ?? '');
+    setDemo(session.demo);
+  }, [session?.channel, session?.demo]);
+
+  const current = session?.channel ?? null;
+  const connected = session?.connected ?? false;
+
+  const run = async (fn: () => Promise<void>): Promise<void> => {
+    setBusy(true);
+    try {
+      await fn();
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <div className="connect">
+      <div className="connect-field">
+        <span className="connect-hash">#</span>
+        <input
+          className="connect-input"
+          value={channel}
+          spellCheck={false}
+          placeholder="twitch channel (e.g. xqc) — blank = demo only"
+          onChange={(e) => setChannel(e.target.value)}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter') void run(() => connectSession(channel, demo));
+          }}
+        />
+      </div>
+      <label className="connect-demo">
+        <input type="checkbox" checked={demo} onChange={(e) => setDemo(e.target.checked)} />
+        demo feed
+      </label>
+      <button
+        className="connect-btn"
+        disabled={busy}
+        onClick={() => void run(() => connectSession(channel, demo))}
+      >
+        {current ? 'Switch' : 'Connect'}
+      </button>
+      {current && (
+        <button
+          className="connect-btn ghost"
+          disabled={busy}
+          onClick={() => void run(disconnectSession)}
+        >
+          Disconnect
+        </button>
+      )}
+      <span className={`connect-state ${connected ? 'on' : ''}`}>
+        {current
+          ? connected
+            ? `listening to #${current}`
+            : `connecting to #${current}…`
+          : 'not connected'}
+      </span>
     </div>
   );
 }
