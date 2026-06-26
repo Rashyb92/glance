@@ -68,11 +68,20 @@ of the adapter seam.
 | `integrations/entitlement-store.ts` | Per-tenant plan record (webhook-first provisioning) |
 
 ### Plans
-| Plan | $/mo | Retention cap | AI priorities | Audio routing | Multi-platform | Seats |
-|------|-----:|---------------|:-------------:|:-------------:|:--------------:|:-----:|
-| Free | 0 | 7 days | – | – | – | 1 |
-| Creator | 12 | 90 days | ✓ | ✓ | – | 1 |
-| Pro | 39 | 365 days | ✓ | ✓ | ✓ | 5 |
+
+Tiers map to the blueprint as Free → Free, Creator → "Pro", Pro → "Elite". The
+primary lever is **AI calls/day** (metered Claude usage: summaries + priority
+re-ranking + recaps); the top tier adds the Elite features.
+
+| Plan | $/mo | AI calls/day | Retention | AI priorities | Audio | Multi-platform | Mod. actions | Adv. analytics | Branded | Teams | Seats |
+|------|-----:|-------------:|-----------|:---:|:---:|:---:|:---:|:---:|:---:|:---:|:---:|
+| Free | 0 | 500 | 7 days | – | – | – | – | – | – | – | 1 |
+| Creator | 18 | 10,000 | 90 days | ✓ | ✓ | ✓ | – | – | – | – | 1 |
+| Pro | 49 | 200,000 | 365 days | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | 5 |
+
+The Elite feature *flags* (`moderationActions`, `advancedAnalytics`, `brandedOverlays`,
+`teamManagement`) are defined and gated now; the features themselves are roadmap
+milestones. "Priority support" is operational, not code.
 
 ### Environment
 ```
@@ -94,10 +103,15 @@ verification — read the raw bytes before `JSON.parse`. Listen to `invoice.paid
 the primary provisioning event, plus `customer.subscription.*`.
 
 ### Enforcing entitlements
-In the Hub, resolve the tenant's plan from `EntitlementStore` and pass settings
-through `applyPlanLimits(settings, plan)` on load and on every settings update.
-A downgraded tenant keeps working — gated features simply switch off; retention is
-capped. (Unit-tested in `packages/core/test/plans.test.ts`.)
+The Hub clamps settings with `applyPlanLimits` on load and on every update, so clients
+only ever see plan-clamped effective settings. AI usage is metered per tenant against
+`aiCallsPerDay` (the `AiUsageMeter`); once the daily budget is spent, summaries/priority
+re-ranking/recaps are skipped until the next UTC day and the pipeline falls back to its
+deterministic output. A downgraded tenant keeps working — gated features simply switch off.
+
+Wire real plans by passing `entitlements: new EntitlementStore(...)` into the Hub. Without
+it (self-host / dev), the Hub defaults every tenant to **Pro** (ungated). Unit-tested in
+`packages/core/test/plans.test.ts` and `apps/server/test/ai-usage.test.ts`.
 
 ---
 

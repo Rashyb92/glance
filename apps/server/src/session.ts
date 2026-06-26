@@ -20,6 +20,8 @@ export interface SessionDeps {
   ai: AIProvider;
   storage: Storage;
   log: (message: string) => void;
+  /** Gate for the AI usage cap — returns false when the daily budget is spent. */
+  canUseAi?: () => boolean;
 }
 
 /**
@@ -101,6 +103,7 @@ export class SessionController {
       ai: this.deps.ai,
       keywords: this.settings.keywords,
       summaryIntervalMs: this.settings.summaryIntervalMs,
+      canUseAi: this.deps.canUseAi,
       onItem: (item) => {
         if (item.type === 'message') {
           this.stats?.ingestMessage(item.data);
@@ -187,7 +190,7 @@ export class SessionController {
     const top = recorder.topMoments(8);
     const task = (async () => {
       let recap: ChatSummary | null = null;
-      if (top.length > 0) {
+      if (top.length > 0 && (!this.deps.canUseAi || this.deps.canUseAi())) {
         try {
           recap = await this.deps.ai.summarize({ channel: recorder.channel, recent: top });
         } catch (err) {
@@ -218,6 +221,7 @@ export class SessionController {
       .snapshot(50)
       .filter((m) => m.score >= this.settings.surfaceThreshold);
     if (candidates.length === 0) return;
+    if (this.deps.canUseAi && !this.deps.canUseAi()) return; // daily AI cap reached
     this.prioritizing = true;
     try {
       const priorities = await this.deps.ai.prioritize({

@@ -33,4 +33,19 @@ describe('plans / entitlements', () => {
     expect(planFor('bogus').id).toBe('free');
     expect(planFor('pro').id).toBe('pro');
   });
+
+  it('gates top-tier (Elite) features to Pro only', () => {
+    expect(PLANS.free.limits.moderationActions).toBe(false);
+    expect(PLANS.creator.limits.moderationActions).toBe(false);
+    expect(PLANS.pro.limits.moderationActions).toBe(true);
+    expect(PLANS.pro.limits.advancedAnalytics).toBe(true);
+    expect(PLANS.pro.limits.brandedOverlays).toBe(true);
+    expect(PLANS.pro.limits.teamManagement).toBe(true);
+  });
+
+  it('scales the AI usage cap up by tier', () => {
+    expect(PLANS.free.limits.aiCallsPerDay).toBeGreaterThan(0);
+    expect(PLANS.free.limits.aiCallsPerDay).toBeLessThan(PLANS.creator.limits.aiCallsPerDay);
+    expect(PLANS.creator.limits.aiCallsPerDay).toBeLessThan(PLANS.pro.limits.aiCallsPerDay);
+  });
 });
