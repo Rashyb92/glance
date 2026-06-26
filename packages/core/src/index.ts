@@ -4,6 +4,8 @@ export * from './trends';
 export * from './modes';
 export * from './stats';
 export * from './settings';
+export * from './sentiment';
+export * from './toxicity';
 export * from './replay';
 export * from './recorder';
 export * from './protocol';

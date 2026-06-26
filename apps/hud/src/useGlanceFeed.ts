@@ -3,6 +3,7 @@ import type {
   ChannelEvent,
   ChatSummary,
   EngineSettings,
+  PriorityCallout,
   ScoredMessage,
   ServerMessage,
   SessionState,
@@ -22,6 +23,7 @@ export interface FeedState {
   summary: ChatSummary | null;
   session: SessionState | null;
   settings: EngineSettings | null;
+  priorities: PriorityCallout[];
 }
 
 const WS_PORT = (import.meta.env['VITE_GLANCE_WS'] as string | undefined) ?? '8787';
@@ -41,6 +43,7 @@ export function useGlanceFeed(): FeedState {
   const [summary, setSummary] = useState<ChatSummary | null>(null);
   const [session, setSession] = useState<SessionState | null>(null);
   const [settings, setSettings] = useState<EngineSettings | null>(null);
+  const [priorities, setPriorities] = useState<PriorityCallout[]>([]);
   const wsRef = useRef<WebSocket | null>(null);
 
   useEffect(() => {
@@ -81,6 +84,9 @@ export function useGlanceFeed(): FeedState {
           case 'settings':
             setSettings(msg.data);
             break;
+          case 'priorities':
+            setPriorities(msg.data);
+            break;
           default:
             break;
         }
@@ -95,5 +101,5 @@ export function useGlanceFeed(): FeedState {
     };
   }, []);
 
-  return { status, messages, events, summary, session, settings };
+  return { status, messages, events, summary, session, settings, priorities };
 }

@@ -178,6 +178,16 @@ real glasses slot in without touching the rest of the system.
 
 ---
 
+## Reads the room
+
+Beyond raw scoring, Glance reads **sentiment** and **toxicity** on every message.
+The Command Center shows live audience **mood** and a **flagged** count for
+moderation, and a **Priority · act now** card (mirrored by a HUD priority callout)
+where Claude re-ranks the few things you should act on this moment — with a
+deterministic fallback when there's no API key.
+
+---
+
 ## Troubleshooting
 
 - **HUD says "offline"** — the server isn't up yet. With `pnpm dev` it reconnects

@@ -31,6 +31,8 @@ export class SessionController {
   private recorder: SessionRecorder | null = null;
   private adapters: PlatformAdapter[] = [];
   private statsTimer: NodeJS.Timeout | null = null;
+  private priorityTimer: NodeJS.Timeout | null = null;
+  private prioritizing = false;
   private state: SessionState = {
     channel: null,
     demo: true,
@@ -103,6 +105,7 @@ export class SessionController {
       this.recorder?.observeChatters(snap.chatters);
       this.broadcast({ type: 'stats', data: snap });
     }, 2000);
+    this.priorityTimer = setInterval(() => void this.emitPriorities(), 9000);
 
     this.adapters = [];
     if (ch) this.adapters.push(new TwitchAdapter(ch));
@@ -174,6 +177,28 @@ export class SessionController {
     })();
   }
 
+  /** Re-rank recent high-salience candidates via the AI provider and broadcast. */
+  private async emitPriorities(): Promise<void> {
+    if (!this.engine || this.prioritizing) return;
+    const candidates = this.engine
+      .snapshot(50)
+      .filter((m) => m.score >= this.settings.surfaceThreshold);
+    if (candidates.length === 0) return;
+    this.prioritizing = true;
+    try {
+      const priorities = await this.deps.ai.prioritize({
+        channel: this.state.channel ?? 'demo',
+        broadcaster: this.state.channel ?? undefined,
+        candidates,
+      });
+      if (priorities.length > 0) this.broadcast({ type: 'priorities', data: priorities });
+    } catch {
+      /* best-effort */
+    } finally {
+      this.prioritizing = false;
+    }
+  }
+
   private teardown(): void {
     if (this.recorder?.hasContent()) this.persist(this.recorder);
     this.recorder = null;
@@ -182,6 +207,10 @@ export class SessionController {
     if (this.statsTimer) {
       clearInterval(this.statsTimer);
       this.statsTimer = null;
+    }
+    if (this.priorityTimer) {
+      clearInterval(this.priorityTimer);
+      this.priorityTimer = null;
     }
     this.engine?.stop();
     this.engine = null;

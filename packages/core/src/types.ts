@@ -61,6 +61,7 @@ export type SalienceCategory =
   | 'question'
   | 'trend'
   | 'mention'
+  | 'moderation'
   | 'highlight'
   | 'chatter';
 
@@ -78,6 +79,10 @@ export interface ScoredMessage {
   score: number;
   category: SalienceCategory;
   signals: SalienceSignal[];
+  /** Emotional charge, -1..1 (see analyzeSentiment). */
+  sentiment?: number;
+  /** Toxicity score, 0..1 (see analyzeToxicity). */
+  toxicity?: number;
 }
 
 export type InteractionMode = 'raw' | 'assist' | 'hybrid';
@@ -104,6 +109,17 @@ export type HudItem =
   | { type: 'message'; data: ScoredMessage }
   | { type: 'event'; data: ChannelEvent; score: number }
   | { type: 'summary'; data: ChatSummary };
+
+/** An AI (or rule-based) pick of something the streamer should act on right now. */
+export interface PriorityCallout {
+  id: string;
+  text: string;
+  author?: string;
+  reason: string;
+  category: SalienceCategory;
+  score: number;
+  source: 'ai' | 'rules';
+}
 
 /** The current live session — which channel Glance is listening to, and whether
  *  the source is connected. Broadcast to every client so the UI stays in sync. */

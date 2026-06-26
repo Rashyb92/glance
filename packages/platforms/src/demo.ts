@@ -27,6 +27,8 @@ const DONO_MESSAGES = [
   'amazing stream!', 'love your content, keep it up', 'this made my day', 'take my bits king',
 ];
 const TREND_PHRASES = ['do the food challenge', 'say hi to chat', 'show the doggo', 'order the ramen'];
+// Mildly spicy lines so the moderation / flag path is visible in the demo.
+const SPICY = ['ngl you are a clown for that', 'this take is kinda trash', 'lowkey you are a clown'];
 
 function pick<T>(arr: readonly T[]): T {
   return arr[Math.floor(Math.random() * arr.length)]!;
@@ -54,6 +56,7 @@ export class DemoAdapter implements PlatformAdapter {
     this.timers.push(setInterval(() => this.donation(), 11000));
     this.timers.push(setInterval(() => this.trend(), 17000));
     this.timers.push(setInterval(() => this.event(), 23000));
+    this.timers.push(setInterval(() => this.emit(pick(SPICY)), 28000));
   }
 
   stop(): void {

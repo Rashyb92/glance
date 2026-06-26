@@ -3,6 +3,7 @@ import type {
   AudienceMood,
   EngineSettings,
   MomentItem,
+  PriorityCallout,
   SalienceCategory,
   SessionState,
 } from '@glance/core';
@@ -32,12 +33,13 @@ const CATEGORY_TONE: Record<SalienceCategory, Tone> = {
   question: 'blue',
   trend: 'indigo',
   mention: 'teal',
+  moderation: 'red',
   highlight: 'soft',
   chatter: 'muted',
 };
 
 export function Dashboard(): JSX.Element {
-  const { status, stats, summary, ticker, session, settings } = useStats();
+  const { status, stats, summary, ticker, session, settings, priorities } = useStats();
   const [view, setView] = useState<'live' | 'replay'>('live');
   const channel = session?.channel ?? stats?.channel ?? 'glance';
 
@@ -80,16 +82,20 @@ export function Dashboard(): JSX.Element {
         </div>
       ) : (
         <main className="grid">
+          {priorities.length > 0 && <PriorityCard priorities={priorities} />}
+
           <Card title="Live Pulse" wide>
             <div className="pulse">
               <div className={`mood tone-${MOOD_TONE[stats.mood]}`}>
                 <span className="mood-dot" />
                 <span className="mood-label">{MOOD_LABEL[stats.mood]}</span>
+                <span className="mood-sentiment">{formatSentiment(stats.sentiment)}</span>
               </div>
               <div className="pulse-stats">
                 <Stat label="Chatters" value={stats.chatters} />
                 <Stat label="Msgs / min" value={stats.messagesPerMin} />
                 <Stat label="Questions" value={stats.questionsWaiting} />
+                <Stat label="Flagged" value={stats.flagged} />
               </div>
             </div>
             <Meter label="Hype" pct={stats.hype} tone={MOOD_TONE[stats.mood]} />
@@ -192,6 +198,28 @@ export function Dashboard(): JSX.Element {
         </main>
       )}
     </div>
+  );
+}
+
+function PriorityCard({ priorities }: { priorities: PriorityCallout[] }): JSX.Element {
+  return (
+    <section className="card card-wide">
+      <h2 className="card-title">Priority · act now</h2>
+      <div className="prio-list">
+        {priorities.map((p) => (
+          <div className="prio" key={p.id}>
+            <span className={`prio-cat tone-${CATEGORY_TONE[p.category]}`}>{p.category}</span>
+            <div className="prio-body">
+              <div className="prio-reason">{p.reason}</div>
+              <div className="prio-text">
+                <span className="prio-author">{p.author}</span> {p.text}
+              </div>
+            </div>
+            <span className="prio-src">{p.source === 'ai' ? 'Claude' : 'engine'}</span>
+          </div>
+        ))}
+      </div>
+    </section>
   );
 }
 
@@ -459,6 +487,12 @@ function Status({ status }: { status: ConnectionStatus }): JSX.Element {
 
 function formatNum(n: number): string {
   return n >= 1000 ? `${(n / 1000).toFixed(1)}k` : String(n);
+}
+
+function formatSentiment(s: number): string {
+  if (s > 0.05) return `mood +${s.toFixed(2)}`;
+  if (s < -0.05) return `mood ${s.toFixed(2)}`;
+  return 'mood neutral';
 }
 
 function formatUptime(sec: number): string {

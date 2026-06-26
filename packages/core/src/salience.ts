@@ -1,4 +1,6 @@
 import type { ChatMessage, ScoredMessage, SalienceSignal, SalienceCategory } from './types';
+import { analyzeSentiment } from './sentiment';
+import { analyzeToxicity } from './toxicity';
 
 /** Tuning context for the deterministic salience engine. */
 export interface SalienceContext {
@@ -53,6 +55,8 @@ export function scoreMessage(message: ChatMessage, ctx: SalienceContext = {}): S
   const text = message.text.trim();
   const lower = text.toLowerCase();
   const words = text.split(/\s+/).filter(Boolean);
+  const sentiment = analyzeSentiment(text);
+  const toxicity = analyzeToxicity(text);
 
   // 1. Money on the table — the strongest possible signal.
   if (message.bits && message.bits > 0) {
@@ -100,6 +104,19 @@ export function scoreMessage(message: ChatMessage, ctx: SalienceContext = {}): S
     signals.push({ category: 'chatter', weight: -0.25, reason: 'emote / one-word noise' });
   }
 
+  // Moderation — surface flagged harassment/toxicity so the streamer or mods can act.
+  if (toxicity.flagged) {
+    signals.push({ category: 'moderation', weight: 0.55, reason: 'flagged for moderation' });
+  }
+  // Strong emotional reactions (either direction) deserve a little more attention.
+  if (Math.abs(sentiment) >= 0.6) {
+    signals.push({
+      category: 'highlight',
+      weight: 0.12,
+      reason: sentiment > 0 ? 'strong positive reaction' : 'strong negative reaction',
+    });
+  }
+
   // Soft-OR aggregation: independent positive signals accumulate but saturate at 1.
   let score = 0;
   for (const s of signals) {
@@ -113,5 +130,7 @@ export function scoreMessage(message: ChatMessage, ctx: SalienceContext = {}): S
     score: round3(score),
     category: dominantCategory(signals),
     signals,
+    sentiment,
+    toxicity: toxicity.score,
   };
 }

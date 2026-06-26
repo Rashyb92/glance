@@ -1,4 +1,4 @@
-import type { HudItem, SessionState } from './types';
+import type { HudItem, PriorityCallout, SessionState } from './types';
 import type { DashboardStats } from './stats';
 import type { EngineSettings } from './settings';
 
@@ -11,4 +11,5 @@ export type ServerMessage =
   | { type: 'stats'; data: DashboardStats }
   | { type: 'session'; data: SessionState }
   | { type: 'settings'; data: EngineSettings }
+  | { type: 'priorities'; data: PriorityCallout[] }
   | { type: 'hello'; data: { ts: number } };

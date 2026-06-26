@@ -51,6 +51,13 @@ describe('scoreMessage', () => {
     expect(s.category).toBe('trend');
     expect(s.score).toBeGreaterThan(0.5);
   });
+
+  it('flags toxic messages for moderation and surfaces them', () => {
+    const s = scoreMessage(msg('kys loser'));
+    expect(s.category).toBe('moderation');
+    expect(s.score).toBeGreaterThanOrEqual(0.5);
+    expect(typeof s.sentiment).toBe('number');
+  });
 });
 
 describe('TrendTracker', () => {

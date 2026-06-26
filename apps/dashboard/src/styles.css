@@ -838,3 +838,59 @@ body {
 .tl-dot.indigo {
   background: var(--indigo);
 }
+
+/* ---- Priority + sentiment ---- */
+.mood-sentiment {
+  font-size: 11px;
+  color: var(--muted);
+  margin-left: 2px;
+}
+.prio-list {
+  display: flex;
+  flex-direction: column;
+  gap: 9px;
+}
+.prio {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  padding: 10px 13px;
+  background: rgba(255, 255, 255, 0.02);
+}
+.prio-cat {
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  min-width: 78px;
+}
+.prio-body {
+  flex: 1;
+  min-width: 0;
+}
+.prio-reason {
+  font-size: 13.5px;
+  font-weight: 600;
+  color: var(--ink);
+}
+.prio-text {
+  font-size: 12px;
+  color: var(--ink-soft);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.prio-author {
+  color: var(--ink);
+  font-weight: 600;
+}
+.prio-src {
+  font-size: 10px;
+  color: var(--muted);
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  padding: 2px 8px;
+  white-space: nowrap;
+}

@@ -1,6 +1,6 @@
 import { normalizeTrendText } from '@glance/core';
-import type { AudienceMood, ChatSummary } from '@glance/core';
-import type { AIProvider, SummarizeInput } from './provider';
+import type { AudienceMood, ChatSummary, PriorityCallout, ScoredMessage } from '@glance/core';
+import type { AIProvider, PrioritizeInput, SummarizeInput } from './provider';
 
 /**
  * Deterministic, zero-dependency summariser. It runs with no API key and is also
@@ -11,6 +11,27 @@ export class RulesProvider implements AIProvider {
 
   summarize(input: SummarizeInput): Promise<ChatSummary> {
     return Promise.resolve(this.build(input));
+  }
+
+  prioritize(input: PrioritizeInput): Promise<PriorityCallout[]> {
+    const seen = new Set<string>();
+    const out: PriorityCallout[] = [];
+    for (const c of [...input.candidates].sort((a, b) => b.score - a.score)) {
+      const norm = normalizeTrendText(c.message.text);
+      if (seen.has(norm)) continue;
+      seen.add(norm);
+      out.push({
+        id: c.message.id,
+        text: c.message.text,
+        author: c.message.author,
+        reason: topReason(c),
+        category: c.category,
+        score: c.score,
+        source: 'rules',
+      });
+      if (out.length >= 3) break;
+    }
+    return Promise.resolve(out);
   }
 
   private build(input: SummarizeInput): ChatSummary {
@@ -76,6 +97,15 @@ export class RulesProvider implements AIProvider {
       timestamp: Date.now(),
     };
   }
+}
+
+function topReason(scored: ScoredMessage): string {
+  let best: { weight: number; reason: string } | undefined;
+  for (const s of scored.signals) {
+    if (s.weight <= 0) continue;
+    if (!best || s.weight > best.weight) best = s;
+  }
+  return best?.reason ?? scored.category;
 }
 
 function truncate(s: string, n: number): string {

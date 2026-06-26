@@ -29,6 +29,10 @@ export interface DashboardStats {
   mood: AudienceMood;
   hype: number; // 0..100
   questionsWaiting: number;
+  /** Average sentiment across the window, -1..1. */
+  sentiment: number;
+  /** Messages flagged for moderation in the window. */
+  flagged: number;
 
   // Monetization
   bitsTotal: number;
@@ -106,12 +110,20 @@ export class StatsAggregator {
     let highCount = 0;
     let questions = 0;
     let bitsWindow = 0;
+    let sentimentSum = 0;
+    let sentimentCount = 0;
+    let flagged = 0;
     const trendCounts = new Map<string, { n: number; sample: string }>();
 
     for (const { scored } of this.window) {
       authors.add(scored.message.author);
       if (scored.score >= this.highThreshold) highCount += 1;
       if (scored.category === 'question') questions += 1;
+      if (scored.category === 'moderation' || (scored.toxicity ?? 0) >= 0.5) flagged += 1;
+      if (typeof scored.sentiment === 'number') {
+        sentimentSum += scored.sentiment;
+        sentimentCount += 1;
+      }
       bitsWindow += scored.message.bits ?? 0;
       const norm = normalizeTrendText(scored.message.text);
       if (norm.split(' ').filter(Boolean).length >= 2) {
@@ -122,14 +134,15 @@ export class StatsAggregator {
     }
 
     const minutes = Math.max(this.windowMs / 60_000, 1 / 60);
+    const avgSentiment = sentimentCount > 0 ? sentimentSum / sentimentCount : 0;
     const mood: AudienceMood =
       bitsWindow > 0
         ? 'hyped'
-        : questions >= 3
-          ? 'restless'
-          : this.window.length === 0
-            ? 'neutral'
-            : highCount / Math.max(this.window.length, 1) > 0.25
+        : avgSentiment <= -0.25
+          ? 'negative'
+          : questions >= 3
+            ? 'restless'
+            : avgSentiment >= 0.25
               ? 'positive'
               : 'neutral';
 
@@ -153,6 +166,8 @@ export class StatsAggregator {
       mood,
       hype: clampPct(Math.round(highCount * 6 + bitsWindow / 100)),
       questionsWaiting: questions,
+      sentiment: Math.round(avgSentiment * 100) / 100,
+      flagged,
       bitsTotal: this.bitsTotal,
       cheers: this.cheers,
       giftSubs: this.giftSubs,

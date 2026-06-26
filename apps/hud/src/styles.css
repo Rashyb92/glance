@@ -588,3 +588,35 @@ body {
   color: var(--teal);
   border-color: rgba(79, 224, 207, 0.4);
 }
+
+/* ---- Priority callout ---- */
+.priority-callout {
+  border: 1px solid rgba(255, 210, 122, 0.4);
+  background: linear-gradient(180deg, rgba(255, 210, 122, 0.1), var(--panel-solid));
+  border-radius: var(--radius-sm);
+  padding: 11px 13px;
+  box-shadow: var(--shadow);
+  animation: rise 0.36s cubic-bezier(0.22, 0.61, 0.36, 1) both;
+}
+.priority-tag {
+  font-size: 9.5px;
+  font-weight: 700;
+  letter-spacing: 0.16em;
+  color: var(--gold);
+}
+.priority-reason {
+  margin: 5px 0 4px;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--ink);
+}
+.priority-text {
+  margin: 0;
+  font-size: 12.5px;
+  color: var(--ink-soft);
+  line-height: 1.4;
+}
+.priority-author {
+  font-weight: 600;
+  color: var(--ink);
+}

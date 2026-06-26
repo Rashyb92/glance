@@ -3,6 +3,7 @@ import type {
   ChatSummary,
   DashboardStats,
   EngineSettings,
+  PriorityCallout,
   ScoredMessage,
   ServerMessage,
   SessionState,
@@ -17,13 +18,14 @@ export interface DashState {
   ticker: ScoredMessage[];
   session: SessionState | null;
   settings: EngineSettings | null;
+  priorities: PriorityCallout[];
 }
 
 const WS_PORT = (import.meta.env['VITE_GLANCE_WS'] as string | undefined) ?? '8787';
 const WS_URL = `ws://localhost:${WS_PORT}`;
 
 /** Subscribes to the gateway and exposes the latest stats, AI summary, session
- *  state, engine settings and a small ticker of high-salience messages. */
+ *  state, engine settings, AI priorities and a small ticker of high-salience messages. */
 export function useStats(): DashState {
   const [status, setStatus] = useState<ConnectionStatus>('connecting');
   const [stats, setStats] = useState<DashboardStats | null>(null);
@@ -31,6 +33,7 @@ export function useStats(): DashState {
   const [ticker, setTicker] = useState<ScoredMessage[]>([]);
   const [session, setSession] = useState<SessionState | null>(null);
   const [settings, setSettings] = useState<EngineSettings | null>(null);
+  const [priorities, setPriorities] = useState<PriorityCallout[]>([]);
   const wsRef = useRef<WebSocket | null>(null);
 
   useEffect(() => {
@@ -67,6 +70,9 @@ export function useStats(): DashState {
           case 'settings':
             setSettings(msg.data);
             break;
+          case 'priorities':
+            setPriorities(msg.data);
+            break;
           case 'message':
             if (msg.data.score >= 0.5) setTicker((p) => [msg.data, ...p].slice(0, 8));
             break;
@@ -84,5 +90,5 @@ export function useStats(): DashState {
     };
   }, []);
 
-  return { status, stats, summary, ticker, session, settings };
+  return { status, stats, summary, ticker, session, settings, priorities };
 }

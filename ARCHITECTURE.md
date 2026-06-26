@@ -75,9 +75,11 @@ interface AIProvider {
 - **Add OpenAI / a local model / a fine-tuned salience model:** implement
   `AIProvider` and return it from the factory. The engine calls `summarize()` and
   never branches on which provider it got.
-- **Where the moat grows:** today the salience *scoring* is rule-based in
-  `@glance/core` and the AI only *summarises*. The natural next step is a learned
-  salience model that re-ranks messages — it slots in behind this same interface.
+- **Where the moat grows:** the deterministic engine now also reads **sentiment**
+  and **toxicity** (pure, tested), and the `AIProvider` exposes **`prioritize()`** —
+  Claude re-ranks recent candidates into the few things to act on right now, with
+  a rule-based fallback. A learned salience model slots in behind the same
+  interface next.
 
 ### 3. `RenderTarget` — where it's shown
 
@@ -134,8 +136,9 @@ coupling to the engine, which keeps the render layer truly swappable.
 ## How a scored message is built
 
 `@glance/core` `scoreMessage()` combines independent signals — money (bits),
-direct address, keywords, questions, trend repetition, role, and a noise penalty —
-with a soft-OR aggregation that saturates at 1.0. It returns the score, the
+direct address, keywords, questions, trend repetition, role, emotional charge
+(sentiment), a moderation flag (toxicity), and a noise penalty — with a soft-OR
+aggregation that saturates at 1.0. It returns the score, the
 dominant category, and the **reasons** each signal fired (for explainability in a
 future dashboard). It is deterministic, so it is trivially testable: see
 `packages/core/test/salience.test.ts`.

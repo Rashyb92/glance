@@ -25,6 +25,7 @@ const CATEGORY: Record<SalienceCategory, { label: string; glyph: string; tone: T
   question: { label: 'Question', glyph: '?', tone: 'blue' },
   trend: { label: 'Trend', glyph: '▲', tone: 'indigo' },
   mention: { label: 'Mention', glyph: '@', tone: 'teal' },
+  moderation: { label: 'Flag', glyph: '⚠', tone: 'red' },
   highlight: { label: 'Highlight', glyph: '★', tone: 'soft' },
   chatter: { label: 'Chatter', glyph: '·', tone: 'muted' },
 };
@@ -47,10 +48,11 @@ const MODE_LABEL: Record<InteractionMode, string> = {
 };
 
 export function App(): JSX.Element {
-  const { status, messages, events, summary, session, settings } = useGlanceFeed();
+  const { status, messages, events, summary, session, settings, priorities } = useGlanceFeed();
   const [overlay, setOverlay] = useOverlaySettings();
   const [mode, setMode] = useState<InteractionMode>('hybrid');
   const [panelOpen, setPanelOpen] = useState(false);
+  const topPriority = priorities[0];
 
   const threshold = settings?.surfaceThreshold ?? FALLBACK_THRESHOLD;
   const counts = DENSITY_COUNTS[overlay.density];
@@ -103,6 +105,15 @@ export function App(): JSX.Element {
         )}
 
         <div className={`feed mode-${mode}`}>
+          {mode !== 'raw' && topPriority && (
+            <article className="priority-callout">
+              <span className="priority-tag">PRIORITY</span>
+              <p className="priority-reason">{topPriority.reason}</p>
+              <p className="priority-text">
+                <span className="priority-author">{topPriority.author}</span> {topPriority.text}
+              </p>
+            </article>
+          )}
           {showSummary && summary && <SummaryCard summary={summary} />}
           {events.slice(0, 3).map((e) => (
             <EventCard key={e.event.id} event={e.event} score={e.score} />
