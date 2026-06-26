@@ -9,6 +9,7 @@ import type {
 } from '@glance/core';
 import type { Bus } from './bus';
 import { resolveTenant } from './auth';
+import { RateLimiter } from './ratelimit';
 import { logger } from './logger';
 import { metrics } from './metrics';
 
@@ -28,6 +29,8 @@ export interface GatewayControl {
   listSessions: (tenant: string) => SessionSummary[];
   getReplay: (tenant: string, id: string) => SessionDetail | null;
   deleteReplay: (tenant: string, id: string) => void;
+  exportAll: (tenant: string) => SessionDetail[];
+  deleteByChannel: (tenant: string, channel: string) => number;
 }
 
 export interface Gateway {
@@ -65,7 +68,10 @@ type TrackedSocket = WebSocket & { isAlive?: boolean; tenant?: string };
  * and per-client backpressure (skips slow consumers instead of buffering unboundedly).
  */
 export function startGateway(port: number, control: GatewayControl, bus: Bus): Gateway {
-  const server = createServer((req, res) => handleHttp(req, res, control));
+  // Per-IP token buckets: cheap protection against floods / accidental loops.
+  const httpLimiter = new RateLimiter(intEnv('GLANCE_HTTP_BURST', 60), intEnv('GLANCE_HTTP_RPS', 20));
+  const connLimiter = new RateLimiter(intEnv('GLANCE_CONN_BURST', 20), intEnv('GLANCE_CONN_RPS', 5));
+  const server = createServer((req, res) => handleHttp(req, res, control, httpLimiter));
 
   const wss = new WebSocketServer({
     server,
@@ -120,6 +126,12 @@ export function startGateway(port: number, control: GatewayControl, bus: Bus): G
       return;
     }
 
+    if (!connLimiter.allow(clientIp(req))) {
+      metrics.inc('glance_ws_ratelimited_total');
+      socket.close(1013, 'rate limited');
+      return;
+    }
+
     const tenant = resolveTenant(tokenFromUrl(req.url));
     if (!tenant) {
       metrics.inc('glance_ws_unauthorized_total');
@@ -163,12 +175,20 @@ export function startGateway(port: number, control: GatewayControl, bus: Bus): G
   }, HEARTBEAT_MS);
   heartbeat.unref?.();
 
+  // Reclaim idle rate-limit buckets so the maps can't grow unbounded.
+  const sweeper = setInterval(() => {
+    httpLimiter.sweep();
+    connLimiter.sweep();
+  }, 60_000);
+  sweeper.unref?.();
+
   server.listen(port);
 
   return {
     clientCount: () => wss.clients.size,
     close: () => {
       clearInterval(heartbeat);
+      clearInterval(sweeper);
       for (const client of wss.clients) client.close(1001, 'server shutting down');
       wss.close();
       server.close();
@@ -176,7 +196,12 @@ export function startGateway(port: number, control: GatewayControl, bus: Bus): G
   };
 }
 
-function handleHttp(req: IncomingMessage, res: ServerResponse, control: GatewayControl): void {
+function handleHttp(
+  req: IncomingMessage,
+  res: ServerResponse,
+  control: GatewayControl,
+  limiter: RateLimiter,
+): void {
   const cors = corsHeaders(req.headers.origin);
   const send = (code: number, body?: unknown): void => {
     res.writeHead(code, { 'content-type': 'application/json', ...cors });
@@ -203,6 +228,13 @@ function handleHttp(req: IncomingMessage, res: ServerResponse, control: GatewayC
   }
   if (req.method === 'GET' && url === '/ready') {
     send(200, { ready: true });
+    return;
+  }
+
+  // Rate-limit the data plane (ops endpoints above are intentionally exempt).
+  if (!limiter.allow(clientIp(req))) {
+    metrics.inc('glance_http_ratelimited_total');
+    send(429, { error: 'rate_limited' });
     return;
   }
 
@@ -236,8 +268,16 @@ function handleHttp(req: IncomingMessage, res: ServerResponse, control: GatewayC
       return;
     }
   }
+  if (url === '/api/export') {
+    if (req.method === 'GET') return send(200, control.exportAll(tenant));
+  }
   if (url === '/api/sessions') {
     if (req.method === 'GET') return send(200, control.listSessions(tenant));
+    if (req.method === 'DELETE') {
+      const channel = queryParam(req.url, 'channel');
+      if (!channel) return send(400, { error: 'channel required' });
+      return send(200, { removed: control.deleteByChannel(tenant, channel) });
+    }
   }
   if (url.startsWith('/api/sessions/')) {
     const id = decodeURIComponent(url.slice('/api/sessions/'.length));
@@ -274,12 +314,17 @@ function readJson(req: IncomingMessage): Promise<Record<string, unknown>> {
   });
 }
 
-/** Extract the `token` query param from a request URL (used by browser WS clients). */
-function tokenFromUrl(url: string | undefined): string | undefined {
+/** Extract a named query param from a request URL. */
+function queryParam(url: string | undefined, name: string): string | undefined {
   if (!url) return undefined;
   const q = url.indexOf('?');
   if (q < 0) return undefined;
-  return new URLSearchParams(url.slice(q + 1)).get('token') ?? undefined;
+  return new URLSearchParams(url.slice(q + 1)).get(name) ?? undefined;
+}
+
+/** Extract the `token` query param (used by browser WS clients). */
+function tokenFromUrl(url: string | undefined): string | undefined {
+  return queryParam(url, 'token');
 }
 
 /** Extract a token from `Authorization: Bearer …` or the `token` query param. */
@@ -287,6 +332,20 @@ function tokenFromReq(req: IncomingMessage): string | undefined {
   const auth = req.headers.authorization;
   if (auth && auth.startsWith('Bearer ')) return auth.slice(7).trim();
   return tokenFromUrl(req.url);
+}
+
+/**
+ * Best-effort client IP for rate limiting. Only trusts `X-Forwarded-For` when
+ * `GLANCE_TRUST_PROXY=1` (i.e. you run behind a known LB) — otherwise a client
+ * could spoof the header to evade limits.
+ */
+function clientIp(req: IncomingMessage): string {
+  if (process.env['GLANCE_TRUST_PROXY'] === '1') {
+    const xff = req.headers['x-forwarded-for'];
+    const first = (Array.isArray(xff) ? xff[0] : xff)?.split(',')[0]?.trim();
+    if (first) return first;
+  }
+  return req.socket.remoteAddress ?? 'unknown';
 }
 
 export function originAllowed(origin: string | undefined): boolean {

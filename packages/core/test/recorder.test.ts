@@ -52,3 +52,21 @@ describe('SessionRecorder', () => {
     expect(r.hasContent()).toBe(false);
   });
 });
+
+describe('SessionRecorder — privacy redaction', () => {
+  it('omits raw message text from the archive when redactText is on', () => {
+    const r = new SessionRecorder('s', 'c', 'twitch', 0, true);
+    r.recordMessage(scored('something private', 0.9, 100, 'whale'), 0);
+    const d = r.finalize(1000, null);
+    expect(d.moments[0]?.text).toBe(''); // text redacted
+    expect(d.moments[0]?.author).toBe('whale'); // metadata kept
+    expect(d.topMoment?.text).toBe('');
+    expect(d.bits).toBe(100); // counts intact
+  });
+
+  it('keeps text when redactText is off (default)', () => {
+    const r = new SessionRecorder('s', 'c', 'twitch', 0);
+    r.recordMessage(scored('keep me', 0.9), 0);
+    expect(r.finalize(1000, null).moments[0]?.text).toBe('keep me');
+  });
+});

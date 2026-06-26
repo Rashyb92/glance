@@ -27,6 +27,8 @@ export class SessionRecorder {
     readonly channel: string,
     readonly platform: Platform | null,
     now: number = Date.now(),
+    /** Privacy mode: when true, raw message text is omitted from the archive. */
+    private readonly redactText = false,
   ) {
     this.startedAt = now;
   }
@@ -92,7 +94,7 @@ export class SessionRecorder {
       topMoment: top
         ? {
             author: top.scored.message.author,
-            text: top.scored.message.text,
+            text: this.redactText ? '' : top.scored.message.text,
             score: top.scored.score,
           }
         : null,
@@ -101,7 +103,7 @@ export class SessionRecorder {
     const moments: ReplayMoment[] = this.top.slice(0, 10).map((t) => ({
       id: t.scored.message.id,
       author: t.scored.message.author,
-      text: t.scored.message.text,
+      text: this.redactText ? '' : t.scored.message.text,
       score: t.scored.score,
       atSec: t.atSec,
     }));

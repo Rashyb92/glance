@@ -67,6 +67,22 @@ export class Hub {
   deleteReplay(tenant: string, id: string): void {
     this.tenant(tenant).storage.deleteSession(id);
   }
+  exportAll(tenant: string): SessionDetail[] {
+    return this.tenant(tenant).storage.exportAll();
+  }
+  deleteByChannel(tenant: string, channel: string): number {
+    return this.tenant(tenant).storage.deleteByChannel(channel);
+  }
+
+  /** Prune every loaded tenant's archives per its retention policy. */
+  runRetention(now = Date.now()): void {
+    for (const t of this.tenants.values()) {
+      const days = t.settings.get().retentionDays;
+      if (days <= 0) continue;
+      const removed = t.storage.pruneOlderThan(now - days * 86_400_000);
+      if (removed > 0) logger.info('retention pruned sessions', { tenant: t.id, removed, days });
+    }
+  }
 
   /** Gracefully archive every tenant's in-flight session. */
   async shutdown(): Promise<void> {
@@ -92,6 +108,10 @@ export class Hub {
     });
     controller.setBroadcast((message) => this.deps.bus.publish(id, message));
     controller.applySettings(settings.get());
+
+    // Apply retention the moment a tenant loads, so idle data ages out on next use.
+    const retentionDays = settings.get().retentionDays;
+    if (retentionDays > 0) storage.pruneOlderThan(Date.now() - retentionDays * 86_400_000);
 
     const tenant: Tenant = { id, controller, settings, storage };
     this.tenants.set(id, tenant);

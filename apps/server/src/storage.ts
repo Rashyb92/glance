@@ -8,11 +8,19 @@ export interface Storage {
   listSessions(limit?: number): SessionSummary[];
   getSession(id: string): SessionDetail | null;
   deleteSession(id: string): void;
+  /** Delete archives older than `cutoffMs` (epoch ms). Returns count removed. */
+  pruneOlderThan(cutoffMs: number): number;
+  /** Delete every archive for a channel (right-to-erasure). Returns count removed. */
+  deleteByChannel(channel: string): number;
+  /** Full export of every archived session (data portability). */
+  exportAll(): SessionDetail[];
 }
 
 /**
  * File-backed session archive: one JSON document per session, written atomically
  * (temp-then-rename). Reads tolerate missing/corrupt records rather than throwing.
+ * One FileStorage instance is scoped to a single tenant's directory, so tenants are
+ * physically isolated on disk.
  */
 export class FileStorage implements Storage {
   constructor(private readonly dir: string) {
@@ -35,31 +43,63 @@ export class FileStorage implements Storage {
   }
 
   deleteSession(id: string): void {
-    try {
-      rmSync(this.fileFor(id));
-    } catch {
-      /* already gone */
-    }
+    this.remove(`${id.replace(/[^a-zA-Z0-9_-]/g, '')}.json`);
   }
 
   listSessions(limit = 50): SessionSummary[] {
+    const summaries = this.readAll().map((r) => toSummary(r.detail));
+    summaries.sort((a, b) => b.startedAt - a.startedAt);
+    return summaries.slice(0, limit);
+  }
+
+  exportAll(): SessionDetail[] {
+    const details = this.readAll().map((r) => r.detail);
+    details.sort((a, b) => b.startedAt - a.startedAt);
+    return details;
+  }
+
+  pruneOlderThan(cutoffMs: number): number {
+    let removed = 0;
+    for (const { file, detail } of this.readAll()) {
+      if (detail.startedAt < cutoffMs && this.remove(file)) removed += 1;
+    }
+    return removed;
+  }
+
+  deleteByChannel(channel: string): number {
+    let removed = 0;
+    for (const { file, detail } of this.readAll()) {
+      if (detail.channel === channel && this.remove(file)) removed += 1;
+    }
+    return removed;
+  }
+
+  private readAll(): Array<{ file: string; detail: SessionDetail }> {
     let files: string[];
     try {
       files = readdirSync(this.dir).filter((f) => f.endsWith('.json'));
     } catch {
       return [];
     }
-    const summaries: SessionSummary[] = [];
+    const out: Array<{ file: string; detail: SessionDetail }> = [];
     for (const file of files) {
       try {
         const detail = JSON.parse(readFileSync(join(this.dir, file), 'utf8')) as SessionDetail;
-        summaries.push(toSummary(detail));
+        out.push({ file, detail });
       } catch {
-        /* skip a corrupt record rather than failing the whole list */
+        /* skip a corrupt record rather than failing the whole batch */
       }
     }
-    summaries.sort((a, b) => b.startedAt - a.startedAt);
-    return summaries.slice(0, limit);
+    return out;
+  }
+
+  private remove(file: string): boolean {
+    try {
+      rmSync(join(this.dir, file));
+      return true;
+    } catch {
+      return false;
+    }
   }
 
   private fileFor(id: string): string {

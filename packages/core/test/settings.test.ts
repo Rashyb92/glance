@@ -53,4 +53,13 @@ describe('normalizeEngineSettings', () => {
     expect(normalizeEngineSettings({ moderationSensitivity: 5 }).moderationSensitivity).toBe(1);
     expect(normalizeEngineSettings({ moderation: 'yes' }).moderation).toBe(true); // non-bool → default
   });
+
+  it('defaults and bounds the data-protection controls', () => {
+    const d = normalizeEngineSettings({});
+    expect(d.retentionDays).toBe(30);
+    expect(d.storeMessageText).toBe(true);
+    expect(normalizeEngineSettings({ retentionDays: -5 }).retentionDays).toBe(0);
+    expect(normalizeEngineSettings({ retentionDays: 99_999 }).retentionDays).toBe(3650);
+    expect(normalizeEngineSettings({ storeMessageText: false }).storeMessageText).toBe(false);
+  });
 });

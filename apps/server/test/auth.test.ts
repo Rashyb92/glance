@@ -1,7 +1,15 @@
+import { createHmac } from 'node:crypto';
 import { afterEach, describe, expect, it } from 'vitest';
 import { resolveTenant, signToken } from '../src/auth';
 
 const KEY = 'GLANCE_AUTH_SECRET';
+
+/** Craft a validly-signed token with an explicit (possibly past) expiry. */
+function tokenWithExp(tenant: string, secret: string, expEpochSec: number): string {
+  const body = `${tenant}.${expEpochSec}`;
+  const sig = createHmac('sha256', secret).update(body).digest('base64url');
+  return `${body}.${sig}`;
+}
 
 describe('resolveTenant — dev mode (no secret)', () => {
   afterEach(() => {
@@ -48,5 +56,16 @@ describe('resolveTenant — production (signed tokens)', () => {
     const token = signToken('acme', 'top-secret');
     const forged = `evil${token.slice(token.lastIndexOf('.'))}`;
     expect(resolveTenant(forged)).toBeNull();
+  });
+
+  it('accepts a token within its TTL', () => {
+    process.env[KEY] = 'top-secret';
+    expect(resolveTenant(signToken('acme', 'top-secret', { ttlSeconds: 3600 }))).toBe('acme');
+  });
+
+  it('rejects an expired token even though the signature is valid', () => {
+    process.env[KEY] = 'top-secret';
+    const expired = tokenWithExp('acme', 'top-secret', Math.floor(Date.now() / 1000) - 10);
+    expect(resolveTenant(expired)).toBeNull();
   });
 });

@@ -9,6 +9,13 @@ import { FileSettingsStore } from './settings-store';
 import { FileStorage } from './storage';
 import { logger } from './logger';
 
+// Refuse to boot in production without auth: with no secret every client collapses
+// onto the `default` tenant, which would expose tenants to each other.
+if (process.env['NODE_ENV'] === 'production' && !process.env['GLANCE_AUTH_SECRET']) {
+  logger.error('GLANCE_AUTH_SECRET is required in production — refusing to start');
+  process.exit(1);
+}
+
 const config = loadConfig();
 const ai = createAIProvider(config.ai);
 
@@ -32,6 +39,10 @@ const gateway = startGateway(config.wsPort, hub, bus);
 
 // Auto-connect the default tenant so a local `pnpm dev` lights up immediately.
 hub.connect('default', config.channel, config.demo);
+
+// Enforce each tenant's data-retention policy on a slow cadence.
+const retentionTimer = setInterval(() => hub.runRetention(), 3_600_000);
+retentionTimer.unref?.();
 
 logger.info('Glance server is live', {
   aiProvider: ai.name,

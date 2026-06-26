@@ -1,0 +1,36 @@
+import { describe, it, expect } from 'vitest';
+import { applyPlanLimits, PLANS, planFor } from '../src/plans';
+import { DEFAULT_ENGINE_SETTINGS } from '../src/settings';
+
+describe('plans / entitlements', () => {
+  it('caps retention to the plan limit', () => {
+    const s = { ...DEFAULT_ENGINE_SETTINGS, retentionDays: 9999 };
+    expect(applyPlanLimits(s, 'free').retentionDays).toBe(PLANS.free.limits.retentionDaysCap);
+    expect(applyPlanLimits(s, 'pro').retentionDays).toBe(PLANS.pro.limits.retentionDaysCap);
+  });
+
+  it('treats "keep forever" (0) as the plan cap', () => {
+    const s = { ...DEFAULT_ENGINE_SETTINGS, retentionDays: 0 };
+    expect(applyPlanLimits(s, 'creator').retentionDays).toBe(PLANS.creator.limits.retentionDaysCap);
+  });
+
+  it('disables AI priorities below the entitled tier', () => {
+    const s = { ...DEFAULT_ENGINE_SETTINGS, aiPriorities: true };
+    expect(applyPlanLimits(s, 'free').aiPriorities).toBe(false);
+    expect(applyPlanLimits(s, 'creator').aiPriorities).toBe(true);
+  });
+
+  it('strips audio routing on plans without audio, keeps it on those with', () => {
+    const s = { ...DEFAULT_ENGINE_SETTINGS };
+    const free = applyPlanLimits(s, 'free');
+    for (const channels of Object.values(free.routing)) {
+      expect(channels?.every((c) => c === 'display')).toBe(true);
+    }
+    expect(applyPlanLimits(s, 'pro').routing).toEqual(s.routing);
+  });
+
+  it('falls back to the default plan for unknown ids', () => {
+    expect(planFor('bogus').id).toBe('free');
+    expect(planFor('pro').id).toBe('pro');
+  });
+});

@@ -1,0 +1,36 @@
+# Automated dependency currency. Dependabot opens grouped update PRs every week;
+# CI (typecheck → lint → test → build) gates each one, so upgrades are always tested
+# before merge — the enterprise alternative to ad-hoc, unverified version bumps.
+version: 2
+updates:
+  - package-ecosystem: npm
+    directory: /
+    schedule:
+      interval: weekly
+    open-pull-requests-limit: 10
+    groups:
+      # Low-risk patch/minor bumps land together to keep PR noise down.
+      minor-and-patch:
+        update-types:
+          - minor
+          - patch
+      # Majors are grouped by toolchain so breaking changes are reviewed deliberately.
+      react:
+        patterns:
+          - react
+          - react-dom
+          - '@types/react'
+          - '@types/react-dom'
+      build-tooling:
+        patterns:
+          - vite
+          - vitest
+          - '@vitejs/*'
+          - typescript
+          - eslint
+          - '@typescript-eslint/*'
+
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly

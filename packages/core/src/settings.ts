@@ -34,6 +34,10 @@ export interface EngineSettings {
   moderation: boolean;
   /** Toxicity score (0..1) at/above which a message is flagged. Lower = stricter. */
   moderationSensitivity: number;
+  /** Auto-delete archived sessions older than this many days. 0 = keep forever. */
+  retentionDays: number;
+  /** Persist raw message text in archives. false = privacy mode (store only metadata). */
+  storeMessageText: boolean;
 }
 
 const ROUTABLE_CATEGORIES: SalienceCategory[] = [
@@ -64,6 +68,7 @@ export const ENGINE_SETTINGS_BOUNDS = {
   maxIntervalMs: 120_000,
   maxKeywords: 25,
   maxKeywordLength: 40,
+  maxRetentionDays: 3_650,
 } as const;
 
 export const DEFAULT_ENGINE_SETTINGS: EngineSettings = {
@@ -75,6 +80,8 @@ export const DEFAULT_ENGINE_SETTINGS: EngineSettings = {
   aiPriorities: true,
   moderation: true,
   moderationSensitivity: 0.5,
+  retentionDays: 30,
+  storeMessageText: true,
 };
 
 /** Validate and clamp arbitrary input into a safe {@link EngineSettings}. */
@@ -95,6 +102,10 @@ export function normalizeEngineSettings(input: unknown): EngineSettings {
     aiPriorities: boolOr(obj['aiPriorities'], true),
     moderation: boolOr(obj['moderation'], true),
     moderationSensitivity: round2(clamp(numberOr(obj['moderationSensitivity'], 0.5), 0, 1)),
+    retentionDays: Math.round(
+      clamp(numberOr(obj['retentionDays'], 30), 0, ENGINE_SETTINGS_BOUNDS.maxRetentionDays),
+    ),
+    storeMessageText: boolOr(obj['storeMessageText'], true),
   };
 }
 

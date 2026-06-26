@@ -66,3 +66,29 @@ describe('FileStorage', () => {
     expect(store.listSessions().length).toBe(1); // corrupt file skipped, not fatal
   });
 });
+
+describe('FileStorage — retention, erasure, export', () => {
+  it('prunes sessions older than a cutoff', () => {
+    store.saveSession(detail('old', 1_000));
+    store.saveSession(detail('new', 10_000));
+    expect(store.pruneOlderThan(5_000)).toBe(1);
+    expect(store.getSession('old')).toBeNull();
+    expect(store.getSession('new')).not.toBeNull();
+  });
+
+  it('erases every session for a channel (right-to-erasure)', () => {
+    store.saveSession({ ...detail('a', 1000), channel: 'alice' });
+    store.saveSession({ ...detail('b', 2000), channel: 'alice' });
+    store.saveSession({ ...detail('c', 3000), channel: 'bob' });
+    expect(store.deleteByChannel('alice')).toBe(2);
+    expect(store.listSessions().map((s) => s.id)).toEqual(['c']);
+  });
+
+  it('exports full session details, newest first', () => {
+    store.saveSession(detail('s1', 1000));
+    store.saveSession(detail('s2', 2000));
+    const all = store.exportAll();
+    expect(all.map((s) => s.id)).toEqual(['s2', 's1']);
+    expect(all[0]?.moments.length).toBe(1); // full detail, not a summary
+  });
+});

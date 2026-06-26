@@ -1,3 +1,4 @@
+import { randomUUID } from 'node:crypto';
 import { DEFAULT_ENGINE_SETTINGS, SessionRecorder, StatsAggregator } from '@glance/core';
 import type {
   ChannelEvent,
@@ -85,9 +86,12 @@ export class SessionController {
     const platform = ch ? 'twitch' : 'demo';
 
     this.recorder = new SessionRecorder(
-      `${label}-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 7)}`,
+      // Time prefix keeps archives debuggable; crypto suffix makes IDs unguessable.
+      `${label}-${Date.now().toString(36)}-${randomUUID().slice(0, 8)}`,
       label,
       platform,
+      Date.now(),
+      !this.settings.storeMessageText, // privacy mode → omit raw text from the archive
     );
     this.stats = new StatsAggregator(label);
     this.stats.setThreshold(this.settings.surfaceThreshold);
