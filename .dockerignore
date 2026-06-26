@@ -1,0 +1,11 @@
+**/node_modules
+**/dist
+**/.vite
+.data
+.git
+.github
+coverage
+*.log
+.env
+.env.*
+Glance_Audit.pdf

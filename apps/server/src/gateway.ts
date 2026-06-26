@@ -8,6 +8,8 @@ import type {
   SessionState,
   SessionSummary,
 } from '@glance/core';
+import { logger } from './logger';
+import { metrics } from './metrics';
 
 /** The control surface the gateway exposes over HTTP + seeds new WS clients with. */
 export interface GatewayControl {
@@ -63,11 +65,16 @@ export function startGateway(port: number, control: GatewayControl): Gateway {
       originAllowed(info.origin),
   });
 
+  metrics.gauge('glance_ws_clients', () => wss.clients.size);
+
   wss.on('connection', (socket: TrackedSocket) => {
     if (wss.clients.size > MAX_CLIENTS) {
+      logger.warn('ws connection refused: at capacity', { max: MAX_CLIENTS });
+      metrics.inc('glance_ws_refused_total');
       socket.close(1013, 'at capacity');
       return;
     }
+    metrics.inc('glance_ws_connections_total');
     socket.isAlive = true;
     socket.on('pong', () => {
       socket.isAlive = true;
@@ -104,6 +111,7 @@ export function startGateway(port: number, control: GatewayControl): Gateway {
 
   return {
     broadcast: (message: ServerMessage) => {
+      metrics.inc('glance_broadcasts_total');
       const payload = JSON.stringify(message);
       for (const client of wss.clients) {
         if (client.readyState !== WebSocket.OPEN) continue;
@@ -139,8 +147,17 @@ function handleHttp(req: IncomingMessage, res: ServerResponse, control: GatewayC
   }
 
   const url = (req.url ?? '').split('?')[0] ?? '';
+  if (req.method === 'GET' && url === '/metrics') {
+    res.writeHead(200, { 'content-type': 'text/plain; version=0.0.4', ...cors });
+    res.end(metrics.render());
+    return;
+  }
   if (req.method === 'GET' && url === '/health') {
-    send(200, { ok: true, clients: 0 });
+    send(200, { ok: true });
+    return;
+  }
+  if (req.method === 'GET' && url === '/ready') {
+    send(200, { ready: true });
     return;
   }
 
@@ -205,14 +222,14 @@ function readJson(req: IncomingMessage): Promise<Record<string, unknown>> {
   });
 }
 
-function originAllowed(origin: string | undefined): boolean {
+export function originAllowed(origin: string | undefined): boolean {
   // Non-browser clients (native overlays, CLI) send no Origin — allow those.
   // Browsers always send Origin, so a malicious site is blocked by the allowlist.
   if (!origin) return true;
   return ALLOWED_ORIGINS.includes('*') || ALLOWED_ORIGINS.includes(origin);
 }
 
-function corsHeaders(origin: string | undefined): Record<string, string> {
+export function corsHeaders(origin: string | undefined): Record<string, string> {
   const headers: Record<string, string> = {
     'access-control-allow-methods': 'GET,POST,PUT,DELETE,OPTIONS',
     'access-control-allow-headers': 'content-type, authorization',

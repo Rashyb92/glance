@@ -13,6 +13,7 @@ import type { AdapterHandlers, PlatformAdapter } from '@glance/platforms';
 import type { AIProvider } from '@glance/ai';
 import { GlanceEngine } from './engine';
 import type { Storage } from './storage';
+import { metrics } from './metrics';
 
 export interface SessionDeps {
   ai: AIProvider;
@@ -131,6 +132,7 @@ export class SessionController {
     }
 
     this.state = { channel: ch || null, demo, connected: false, platform, since: Date.now() };
+    metrics.inc('glance_sessions_started_total');
     this.broadcast({ type: 'session', data: this.state });
     return this.state;
   }
@@ -178,6 +180,7 @@ export class SessionController {
         try {
           recap = await this.deps.ai.summarize({ channel: recorder.channel, recent: top });
         } catch (err) {
+          metrics.inc('glance_ai_errors_total');
           this.deps.log(`recap failed: ${(err as Error).message}`);
           recap = null;
         }
@@ -185,6 +188,7 @@ export class SessionController {
       try {
         const detail = recorder.finalize(endedAt, recap);
         this.deps.storage.saveSession(detail);
+        metrics.inc('glance_sessions_archived_total');
         this.deps.log(
           `session archived: ${detail.channel} · ${detail.durationSec}s · ${detail.messages} msgs`,
         );
@@ -212,7 +216,7 @@ export class SessionController {
       });
       if (priorities.length > 0) this.broadcast({ type: 'priorities', data: priorities });
     } catch {
-      /* best-effort */
+      metrics.inc('glance_ai_errors_total');
     } finally {
       this.prioritizing = false;
     }

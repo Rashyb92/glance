@@ -6,11 +6,9 @@ import { startGateway } from './gateway';
 import { SessionController } from './session';
 import { FileSettingsStore, SettingsService } from './settings-store';
 import { FileStorage } from './storage';
+import { logger } from './logger';
 
-function log(message: string): void {
-  const t = new Date().toISOString().slice(11, 19);
-  console.log(`\x1b[2m${t}\x1b[0m ${message}`);
-}
+const log = (message: string): void => logger.info(message);
 
 const config = loadConfig();
 const ai = createAIProvider(config.ai);
@@ -42,14 +40,13 @@ controller.setBroadcast(gateway.broadcast);
 controller.applySettings(settings.get());
 controller.connect(config.channel, config.demo);
 
-log('—');
-log('Glance server is live');
-log(`  ai provider : ${ai.name}${ai.name === 'rules' ? ' (add ANTHROPIC_API_KEY for Claude)' : ''}`);
-log(`  control api : http://localhost:${config.wsPort}/api/session · /api/settings · /api/sessions`);
-log(`  ws gateway  : ws://localhost:${config.wsPort}  (health: /health)`);
-log('  HUD         : http://localhost:5173');
-log('  Dashboard   : http://localhost:5174   (connect + tune here)');
-log('—');
+logger.info('Glance server is live', {
+  aiProvider: ai.name,
+  wsGateway: `ws://localhost:${config.wsPort}`,
+  metrics: `http://localhost:${config.wsPort}/metrics`,
+  hud: 'http://localhost:5173',
+  dashboard: 'http://localhost:5174',
+});
 
 let shuttingDown = false;
 async function shutdown(): Promise<void> {

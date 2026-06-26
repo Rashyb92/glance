@@ -27,7 +27,8 @@ export class AnthropicProvider implements AIProvider {
   private readonly fallback = new RulesProvider();
 
   constructor(apiKey: string, model?: string) {
-    this.client = new Anthropic({ apiKey });
+    // Bound every call so a slow/hung API can't stall the summary/priority cycle.
+    this.client = new Anthropic({ apiKey, timeout: 10_000, maxRetries: 1 });
     this.model = model ?? DEFAULT_MODEL;
   }
 
