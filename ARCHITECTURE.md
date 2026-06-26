@@ -111,6 +111,13 @@ Two independent layers, split by ownership:
 This mirrors the product split: the server owns *what matters*; each device owns
 *how it looks*.
 
+**Session archives** follow the same pattern. A finished stream is captured by the
+pure `SessionRecorder` (in `@glance/core`, unit-tested) — best moments, timeline,
+counts — and persisted behind a `Storage` interface. `FileStorage` writes one
+atomic JSON document per session today; SQLite/Postgres slot in at multi-tenant
+scale without touching callers. Replays are served over REST (`/api/sessions`),
+not the live socket.
+
 ## Package responsibilities
 
 | Package             | Owns                                                                 | Depends on            |

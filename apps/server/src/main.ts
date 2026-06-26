@@ -5,6 +5,7 @@ import { loadConfig } from './config';
 import { startGateway } from './gateway';
 import { SessionController } from './session';
 import { FileSettingsStore, SettingsService } from './settings-store';
+import { FileStorage } from './storage';
 
 function log(message: string): void {
   const t = new Date().toISOString().slice(11, 19);
@@ -16,8 +17,9 @@ const ai = createAIProvider(config.ai);
 
 const repoRoot = resolve(dirname(fileURLToPath(import.meta.url)), '../../..');
 const settingsStore = new FileSettingsStore(resolve(repoRoot, '.data', 'settings.json'));
+const storage = new FileStorage(resolve(repoRoot, '.data', 'sessions'));
 
-const controller = new SessionController({ ai, log });
+const controller = new SessionController({ ai, storage, log });
 
 const settings = new SettingsService(settingsStore, (next) => {
   controller.applySettings(next);
@@ -31,6 +33,9 @@ const gateway = startGateway(config.wsPort, {
   disconnect: () => controller.disconnect(),
   getSettings: () => settings.get(),
   updateSettings: (patch) => settings.update(patch),
+  listSessions: () => storage.listSessions(),
+  getReplay: (id) => storage.getSession(id),
+  deleteReplay: (id) => storage.deleteSession(id),
 });
 
 controller.setBroadcast(gateway.broadcast);
@@ -40,7 +45,7 @@ controller.connect(config.channel, config.demo);
 log('—');
 log('Glance server is live');
 log(`  ai provider : ${ai.name}${ai.name === 'rules' ? ' (add ANTHROPIC_API_KEY for Claude)' : ''}`);
-log(`  control api : http://localhost:${config.wsPort}/api/session · /api/settings`);
+log(`  control api : http://localhost:${config.wsPort}/api/session · /api/settings · /api/sessions`);
 log(`  ws gateway  : ws://localhost:${config.wsPort}  (health: /health)`);
 log('  HUD         : http://localhost:5173');
 log('  Dashboard   : http://localhost:5174   (connect + tune here)');

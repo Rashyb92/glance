@@ -8,6 +8,7 @@ import type {
 } from '@glance/core';
 import { useStats, type ConnectionStatus } from './useStats';
 import { connectSession, disconnectSession, updateSettings } from './api';
+import { ReplayView } from './ReplayView';
 
 type Tone = 'gold' | 'blue' | 'indigo' | 'teal' | 'soft' | 'muted' | 'red';
 
@@ -37,6 +38,7 @@ const CATEGORY_TONE: Record<SalienceCategory, Tone> = {
 
 export function Dashboard(): JSX.Element {
   const { status, stats, summary, ticker, session, settings } = useStats();
+  const [view, setView] = useState<'live' | 'replay'>('live');
   const channel = session?.channel ?? stats?.channel ?? 'glance';
 
   return (
@@ -49,6 +51,18 @@ export function Dashboard(): JSX.Element {
           GLANCE
           <span className="brand-sub">Command Center</span>
         </div>
+        <div className="cc-tabs">
+          <button type="button" className={view === 'live' ? 'on' : ''} onClick={() => setView('live')}>
+            Live
+          </button>
+          <button
+            type="button"
+            className={view === 'replay' ? 'on' : ''}
+            onClick={() => setView('replay')}
+          >
+            Replay
+          </button>
+        </div>
         <div className="cc-meta">
           <span className="channel">#{channel}</span>
           {stats && <span className="uptime">{formatUptime(stats.uptimeSec)}</span>}
@@ -56,9 +70,11 @@ export function Dashboard(): JSX.Element {
         </div>
       </header>
 
-      <ConnectBar session={session} />
+      {view === 'live' && <ConnectBar session={session} />}
 
-      {!stats ? (
+      {view === 'replay' ? (
+        <ReplayView />
+      ) : !stats ? (
         <div className="cc-empty">
           Waiting for the Glance server… start everything with <code>pnpm dev</code>.
         </div>

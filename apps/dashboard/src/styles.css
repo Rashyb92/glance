@@ -618,3 +618,223 @@ body {
 .tune-input::placeholder {
   color: var(--muted);
 }
+
+/* ---- Live / Replay tabs ---- */
+.cc-tabs {
+  display: inline-flex;
+  gap: 4px;
+  background: rgba(255, 255, 255, 0.05);
+  padding: 4px;
+  border-radius: 999px;
+}
+.cc-tabs button {
+  border: 0;
+  background: transparent;
+  color: var(--muted);
+  font: inherit;
+  font-size: 12.5px;
+  font-weight: 600;
+  padding: 6px 16px;
+  border-radius: 999px;
+  cursor: pointer;
+}
+.cc-tabs button.on {
+  color: #0a0c12;
+  background: linear-gradient(180deg, #b9b7ff, #8f8cff);
+}
+
+/* ---- Replay ---- */
+.replay {
+  display: grid;
+  grid-template-columns: 320px 1fr;
+  gap: 16px;
+}
+@media (max-width: 760px) {
+  .replay {
+    grid-template-columns: 1fr;
+  }
+}
+.replay-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  max-height: 72vh;
+  overflow: auto;
+}
+.replay-item {
+  text-align: left;
+  border: 1px solid var(--line);
+  background: var(--panel);
+  border-radius: 12px;
+  padding: 11px 13px;
+  cursor: pointer;
+  color: var(--ink-soft);
+  font: inherit;
+}
+.replay-item.on {
+  border-color: rgba(143, 140, 255, 0.5);
+  background: linear-gradient(180deg, rgba(143, 140, 255, 0.08), var(--panel));
+}
+.replay-item-top {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+}
+.replay-ch {
+  color: var(--ink);
+  font-weight: 600;
+  font-size: 13.5px;
+}
+.replay-when {
+  color: var(--muted);
+  font-size: 11px;
+}
+.replay-item-meta {
+  font-size: 11.5px;
+  color: var(--muted);
+  margin-top: 3px;
+}
+.replay-item-recap {
+  font-size: 12px;
+  color: var(--ink-soft);
+  margin-top: 6px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.replay-detail {
+  border: 1px solid var(--line);
+  background: var(--panel);
+  border-radius: 16px;
+  padding: 18px 19px;
+  min-height: 300px;
+}
+.rd-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  margin-bottom: 14px;
+}
+.rd-title {
+  margin: 0;
+  font-size: 20px;
+}
+.rd-sub {
+  color: var(--muted);
+  font-size: 12.5px;
+  margin-top: 2px;
+}
+.rd-del {
+  border: 1px solid var(--line-strong);
+  background: transparent;
+  color: var(--muted);
+  border-radius: 8px;
+  padding: 6px 12px;
+  font: inherit;
+  font-size: 12px;
+  cursor: pointer;
+}
+.rd-del:hover {
+  color: var(--red);
+  border-color: rgba(255, 143, 143, 0.4);
+}
+.rd-stats {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 12px;
+  margin-bottom: 16px;
+}
+.rd-metric-v {
+  font-size: 22px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+.rd-metric-l {
+  font-size: 11px;
+  color: var(--muted);
+  margin-top: 2px;
+}
+.rd-recap {
+  border: 1px solid rgba(143, 140, 255, 0.32);
+  background: linear-gradient(180deg, rgba(143, 140, 255, 0.1), transparent);
+  border-radius: 12px;
+  padding: 12px 13px;
+  margin-bottom: 16px;
+}
+.rd-recap-text {
+  margin: 7px 0 0;
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--ink);
+}
+.rd-h3 {
+  font-size: 11px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--muted);
+  margin: 16px 0 9px;
+}
+.rd-moments {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 8px;
+}
+@media (max-width: 620px) {
+  .rd-moments,
+  .rd-stats {
+    grid-template-columns: 1fr 1fr;
+  }
+}
+.rd-moment {
+  display: flex;
+  gap: 10px;
+  align-items: flex-start;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  padding: 9px 11px;
+}
+.rd-score {
+  font-weight: 800;
+  color: var(--indigo);
+  font-variant-numeric: tabular-nums;
+}
+.rd-author {
+  font-size: 11.5px;
+  font-weight: 600;
+  color: var(--ink);
+  display: block;
+}
+.rd-text {
+  font-size: 12.5px;
+  color: var(--ink-soft);
+}
+.rd-timeline {
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+}
+.tl {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  font-size: 12.5px;
+  color: var(--ink-soft);
+}
+.tl-at {
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
+  min-width: 42px;
+  font-size: 11px;
+}
+.tl-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  flex: none;
+}
+.tl-dot.gold {
+  background: var(--gold);
+}
+.tl-dot.indigo {
+  background: var(--indigo);
+}

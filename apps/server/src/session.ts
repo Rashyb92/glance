@@ -1,7 +1,8 @@
-import { DEFAULT_ENGINE_SETTINGS, StatsAggregator } from '@glance/core';
+import { DEFAULT_ENGINE_SETTINGS, SessionRecorder, StatsAggregator } from '@glance/core';
 import type {
   ChannelEvent,
   ChatMessage,
+  ChatSummary,
   EngineSettings,
   ScoredMessage,
   ServerMessage,
@@ -11,21 +12,23 @@ import { DemoAdapter, TwitchAdapter } from '@glance/platforms';
 import type { AdapterHandlers, PlatformAdapter } from '@glance/platforms';
 import type { AIProvider } from '@glance/ai';
 import { GlanceEngine } from './engine';
+import type { Storage } from './storage';
 
 export interface SessionDeps {
   ai: AIProvider;
+  storage: Storage;
   log: (message: string) => void;
 }
 
 /**
  * Owns the live pipeline for one channel and lets it be (re)built at runtime.
- * `connect()` tears down any previous session and stands up a fresh engine,
- * stats aggregator and adapter set — this is what makes the platform drivable
- * from the UI instead of a `.env` file.
+ * `connect()` tears down any previous session (archiving it via the recorder) and
+ * stands up a fresh engine, stats aggregator, recorder and adapter set.
  */
 export class SessionController {
   private engine: GlanceEngine | null = null;
   private stats: StatsAggregator | null = null;
+  private recorder: SessionRecorder | null = null;
   private adapters: PlatformAdapter[] = [];
   private statsTimer: NodeJS.Timeout | null = null;
   private state: SessionState = {
@@ -40,8 +43,7 @@ export class SessionController {
 
   constructor(private readonly deps: SessionDeps) {}
 
-  /** Wire up the outbound transport once the gateway exists (breaks the
-   *  controller <-> gateway construction cycle without a mutable module var). */
+  /** Wire up the outbound transport once the gateway exists. */
   setBroadcast(fn: (message: ServerMessage) => void): void {
     this.broadcast = fn;
   }
@@ -66,7 +68,13 @@ export class SessionController {
     this.teardown();
     const ch = channel.trim().replace(/^#/, '').toLowerCase();
     const label = ch || 'demo';
+    const platform = ch ? 'twitch' : 'demo';
 
+    this.recorder = new SessionRecorder(
+      `${label}-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 7)}`,
+      label,
+      platform,
+    );
     this.stats = new StatsAggregator(label);
     this.stats.setThreshold(this.settings.surfaceThreshold);
     this.engine = new GlanceEngine({
@@ -76,14 +84,24 @@ export class SessionController {
       keywords: this.settings.keywords,
       summaryIntervalMs: this.settings.summaryIntervalMs,
       onItem: (item) => {
-        if (item.type === 'message') this.stats?.ingestMessage(item.data);
-        else if (item.type === 'event') this.stats?.ingestEvent(item.data);
+        if (item.type === 'message') {
+          this.stats?.ingestMessage(item.data);
+          this.recorder?.recordMessage(item.data);
+        } else if (item.type === 'event') {
+          this.stats?.ingestEvent(item.data);
+          this.recorder?.recordEvent(item.data);
+        } else if (item.type === 'summary') {
+          this.recorder?.recordSummary(item.data);
+        }
         this.broadcast(item);
       },
     });
     this.engine.start();
     this.statsTimer = setInterval(() => {
-      if (this.stats) this.broadcast({ type: 'stats', data: this.stats.snapshot() });
+      if (!this.stats) return;
+      const snap = this.stats.snapshot();
+      this.recorder?.observeChatters(snap.chatters);
+      this.broadcast({ type: 'stats', data: snap });
     }, 2000);
 
     this.adapters = [];
@@ -102,13 +120,7 @@ export class SessionController {
       adapter.start(handlers);
     }
 
-    this.state = {
-      channel: ch || null,
-      demo,
-      connected: false,
-      platform: ch ? 'twitch' : 'demo',
-      since: Date.now(),
-    };
+    this.state = { channel: ch || null, demo, connected: false, platform, since: Date.now() };
     this.broadcast({ type: 'session', data: this.state });
     return this.state;
   }
@@ -137,7 +149,34 @@ export class SessionController {
     }
   }
 
+  /** Finalize the outgoing session: AI recap (best-effort) + durable archive. */
+  private persist(recorder: SessionRecorder): void {
+    const endedAt = Date.now();
+    const top = recorder.topMoments(8);
+    void (async () => {
+      let recap: ChatSummary | null = null;
+      if (top.length > 0) {
+        try {
+          recap = await this.deps.ai.summarize({ channel: recorder.channel, recent: top });
+        } catch {
+          recap = null;
+        }
+      }
+      try {
+        const detail = recorder.finalize(endedAt, recap);
+        this.deps.storage.saveSession(detail);
+        this.deps.log(
+          `session archived: ${detail.channel} · ${detail.durationSec}s · ${detail.messages} msgs`,
+        );
+      } catch {
+        this.deps.log('session archive failed');
+      }
+    })();
+  }
+
   private teardown(): void {
+    if (this.recorder?.hasContent()) this.persist(this.recorder);
+    this.recorder = null;
     for (const adapter of this.adapters) void adapter.stop();
     this.adapters = [];
     if (this.statsTimer) {

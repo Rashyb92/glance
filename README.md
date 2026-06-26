@@ -126,6 +126,15 @@ to the running session immediately and pushed to every client:
 
 ---
 
+## Session Replay
+
+Every time you Disconnect or switch channels, Glance archives the session to
+`.data/sessions/` — durable best moments, a donation / raid / summary timeline,
+headline stats and an AI-written recap. Open the **Replay** tab in the Command
+Center to browse past streams and replay any one of them end to end.
+
+---
+
 ## Scripts
 
 | Command           | What it does                                              |

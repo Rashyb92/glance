@@ -1,6 +1,13 @@
 import { createServer, type IncomingMessage, type ServerResponse } from 'node:http';
 import { WebSocketServer, WebSocket } from 'ws';
-import type { EngineSettings, ScoredMessage, ServerMessage, SessionState } from '@glance/core';
+import type {
+  EngineSettings,
+  ScoredMessage,
+  ServerMessage,
+  SessionDetail,
+  SessionState,
+  SessionSummary,
+} from '@glance/core';
 
 /** The control surface the gateway exposes over HTTP + seeds new WS clients with. */
 export interface GatewayControl {
@@ -10,6 +17,9 @@ export interface GatewayControl {
   disconnect: () => SessionState;
   getSettings: () => EngineSettings;
   updateSettings: (patch: unknown) => EngineSettings;
+  listSessions: () => SessionSummary[];
+  getReplay: (id: string) => SessionDetail | null;
+  deleteReplay: (id: string) => void;
 }
 
 export interface Gateway {
@@ -105,6 +115,25 @@ function handleHttp(req: IncomingMessage, res: ServerResponse, control: GatewayC
       readJson(req)
         .then((body) => send(200, control.updateSettings(body)))
         .catch(() => send(400, { error: 'bad request' }));
+      return;
+    }
+  }
+  if (url === '/api/sessions') {
+    if (req.method === 'GET') {
+      send(200, control.listSessions());
+      return;
+    }
+  }
+  if (url.startsWith('/api/sessions/')) {
+    const id = decodeURIComponent(url.slice('/api/sessions/'.length));
+    if (req.method === 'GET') {
+      const detail = control.getReplay(id);
+      send(detail ? 200 : 404, detail ?? { error: 'not found' });
+      return;
+    }
+    if (req.method === 'DELETE') {
+      control.deleteReplay(id);
+      send(200, { ok: true });
       return;
     }
   }
