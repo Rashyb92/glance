@@ -51,9 +51,14 @@ export class SettingsService {
   }
 
   update(patch: unknown): EngineSettings {
-    const candidate =
-      patch && typeof patch === 'object' ? { ...this.current, ...(patch as object) } : this.current;
-    this.current = normalizeEngineSettings(candidate);
+    const p = patch && typeof patch === 'object' ? (patch as Record<string, unknown>) : {};
+    // Pull ONLY the known fields over current — never spread raw client input.
+    // normalizeEngineSettings then validates + clamps each one.
+    this.current = normalizeEngineSettings({
+      surfaceThreshold: 'surfaceThreshold' in p ? p['surfaceThreshold'] : this.current.surfaceThreshold,
+      keywords: 'keywords' in p ? p['keywords'] : this.current.keywords,
+      summaryIntervalMs: 'summaryIntervalMs' in p ? p['summaryIntervalMs'] : this.current.summaryIntervalMs,
+    });
     this.store.save(this.current);
     this.onChange(this.current);
     return this.current;

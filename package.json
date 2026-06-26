@@ -6,8 +6,9 @@
   "type": "module",
   "packageManager": "pnpm@9.15.0",
   "engines": {
-    "node": ">=20.11"
+    "node": ">=20.19.0"
   },
+  "//engines": "Runs on Node >=20.19. Node 20 reaches EOL — use Node 22 LTS or 24 for production; CI runs Node 24.",
   "scripts": {
     "dev": "pnpm -r --parallel dev",
     "server": "pnpm --filter @glance/server dev",

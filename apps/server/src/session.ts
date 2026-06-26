@@ -33,6 +33,7 @@ export class SessionController {
   private statsTimer: NodeJS.Timeout | null = null;
   private priorityTimer: NodeJS.Timeout | null = null;
   private prioritizing = false;
+  private readonly persisting = new Set<Promise<void>>();
   private state: SessionState = {
     channel: null,
     demo: true,
@@ -68,7 +69,13 @@ export class SessionController {
 
   connect(channel: string, demo: boolean): SessionState {
     this.teardown();
-    const ch = channel.trim().replace(/^#/, '').toLowerCase();
+    let ch = channel.trim().replace(/^#/, '').toLowerCase();
+    // Validate before opening an outbound Twitch connection (Twitch logins are
+    // 4-25 chars, [a-z0-9_]); reject garbage rather than reconnect-looping on it.
+    if (ch && !/^[a-z0-9_]{3,25}$/.test(ch)) {
+      this.deps.log(`rejected invalid channel: ${ch.slice(0, 40)}`);
+      ch = '';
+    }
     const label = ch || 'demo';
     const platform = ch ? 'twitch' : 'demo';
 
@@ -145,6 +152,15 @@ export class SessionController {
     this.teardown();
   }
 
+  /** Await any in-flight session archives — used for graceful shutdown. */
+  async drain(timeoutMs = 5000): Promise<void> {
+    if (this.persisting.size === 0) return;
+    await Promise.race([
+      Promise.allSettled([...this.persisting]),
+      new Promise<void>((resolve) => setTimeout(resolve, timeoutMs)),
+    ]);
+  }
+
   private markConnected(): void {
     if (!this.state.connected) {
       this.state = { ...this.state, connected: true };
@@ -156,12 +172,13 @@ export class SessionController {
   private persist(recorder: SessionRecorder): void {
     const endedAt = Date.now();
     const top = recorder.topMoments(8);
-    void (async () => {
+    const task = (async () => {
       let recap: ChatSummary | null = null;
       if (top.length > 0) {
         try {
           recap = await this.deps.ai.summarize({ channel: recorder.channel, recent: top });
-        } catch {
+        } catch (err) {
+          this.deps.log(`recap failed: ${(err as Error).message}`);
           recap = null;
         }
       }
@@ -171,10 +188,12 @@ export class SessionController {
         this.deps.log(
           `session archived: ${detail.channel} · ${detail.durationSec}s · ${detail.messages} msgs`,
         );
-      } catch {
-        this.deps.log('session archive failed');
+      } catch (err) {
+        this.deps.log(`session archive failed: ${(err as Error).message}`);
       }
     })();
+    this.persisting.add(task);
+    void task.finally(() => this.persisting.delete(task));
   }
 
   /** Re-rank recent high-salience candidates via the AI provider and broadcast. */

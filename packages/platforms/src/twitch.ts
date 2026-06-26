@@ -20,6 +20,7 @@ export class TwitchAdapter implements PlatformAdapter {
   private handlers: AdapterHandlers | null = null;
   private stopped = false;
   private backoffMs = 1000;
+  private reconnectScheduled = false;
 
   constructor(channel: string) {
     this.channel = channel.replace(/^#/, '').toLowerCase();
@@ -60,10 +61,16 @@ export class TwitchAdapter implements PlatformAdapter {
       this.handlers?.onStatus?.({ state: 'closed', reason });
       return;
     }
+    // Single-flight: a socket failure fires both 'error' and 'close' — don't
+    // schedule two overlapping reconnects.
+    if (this.reconnectScheduled) return;
+    this.reconnectScheduled = true;
     this.handlers?.onStatus?.({ state: 'reconnecting', reason });
-    const delay = this.backoffMs;
+    // Full jitter so thousands of adapters don't stampede Twitch in lockstep.
+    const delay = this.backoffMs + Math.random() * this.backoffMs;
     this.backoffMs = Math.min(this.backoffMs * 2, 30000);
     setTimeout(() => {
+      this.reconnectScheduled = false;
       if (!this.stopped) this.connect();
     }, delay);
   }

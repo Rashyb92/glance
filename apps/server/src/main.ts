@@ -51,11 +51,15 @@ log('  HUD         : http://localhost:5173');
 log('  Dashboard   : http://localhost:5174   (connect + tune here)');
 log('—');
 
-function shutdown(): void {
+let shuttingDown = false;
+async function shutdown(): Promise<void> {
+  if (shuttingDown) return;
+  shuttingDown = true;
   log('shutting down…');
-  controller.shutdown();
+  controller.shutdown(); // triggers a final archive of the live session
+  await controller.drain(5000); // wait for archive writes to flush before exit
   gateway.close();
   process.exit(0);
 }
-process.on('SIGINT', shutdown);
-process.on('SIGTERM', shutdown);
+process.on('SIGINT', () => void shutdown());
+process.on('SIGTERM', () => void shutdown());
