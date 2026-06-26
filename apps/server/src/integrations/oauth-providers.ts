@@ -18,12 +18,13 @@ export interface ProviderConfig {
 }
 
 export const PROVIDERS: Record<ProviderId, ProviderConfig> = {
-  // Twitch: read chat via EventSub channel.chat.message (User Access Token).
+  // Twitch: read chat via EventSub channel.chat.message; clips:edit lets the
+  // "clip that" voice command create real clips via Helix (User Access Token).
   twitch: {
     id: 'twitch',
     authorizeUrl: 'https://id.twitch.tv/oauth2/authorize',
     tokenUrl: 'https://id.twitch.tv/oauth2/token',
-    scopes: ['user:read:chat'],
+    scopes: ['user:read:chat', 'clips:edit'],
     usesPkce: false,
     clientIdEnv: 'TWITCH_CLIENT_ID',
     clientSecretEnv: 'TWITCH_CLIENT_SECRET',

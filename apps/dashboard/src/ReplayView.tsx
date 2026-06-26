@@ -172,10 +172,18 @@ function TimelineRow({ entry }: { entry: TimelineEntry }): JSX.Element {
     );
   }
   if (entry.kind === 'marker') {
+    const clipUrl = entry.label.startsWith('clip: ') ? entry.label.slice('clip: '.length) : null;
     return (
       <div className="tl">
         <span className="tl-at">{at}</span>
-        <span className="tl-dot" style={{ background: '#7c5cff' }} />★ {entry.label}
+        <span className="tl-dot" style={{ background: '#7c5cff' }} />
+        {clipUrl ? (
+          <a href={clipUrl} target="_blank" rel="noreferrer" style={{ color: '#a78bfa' }}>
+            ★ Clip — open in Twitch
+          </a>
+        ) : (
+          <>★ {entry.label}</>
+        )}
       </div>
     );
   }

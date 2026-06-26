@@ -32,7 +32,14 @@ export function App(): JSX.Element {
     });
     if (res.action === 'mute') setAudio(false);
     else if (res.action === 'unmute') setAudio(true);
-    else if (res.action === 'mark') void markMoment();
+    else if (res.action === 'mark') {
+      void markMoment().then((url) => {
+        if (url) {
+          speak('Clip saved.', volume, false);
+          setHeard((h) => ['Glance: clip saved', ...h].slice(0, 12));
+        }
+      });
+    }
     speak(res.speak, volume, true);
     setHeard((h) => [`you: ${text}`, `Glance: ${res.speak}`, ...h].slice(0, 12));
   };

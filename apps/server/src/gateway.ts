@@ -29,7 +29,7 @@ export interface GatewayControl {
   getSession: (tenant: string) => SessionState;
   connect: (tenant: string, channel: string, demo: boolean, platform: Platform) => SessionState;
   disconnect: (tenant: string) => SessionState;
-  mark: (tenant: string) => void;
+  mark: (tenant: string) => Promise<{ clipUrl?: string }>;
   getSettings: (tenant: string) => EngineSettings;
   updateSettings: (tenant: string, patch: unknown) => EngineSettings;
   listSessions: (tenant: string) => SessionSummary[];
@@ -63,7 +63,8 @@ export interface Gateway {
 // Hardening config (env-overridable). Defaults are safe for local dev.
 // ---------------------------------------------------------------------------
 const ALLOWED_ORIGINS = (
-  process.env['GLANCE_ALLOWED_ORIGINS'] ?? 'http://localhost:5173,http://localhost:5174'
+  process.env['GLANCE_ALLOWED_ORIGINS'] ??
+  'http://localhost:5173,http://localhost:5174,http://localhost:5175'
 )
   .split(',')
   .map((s) => s.trim())
@@ -302,8 +303,11 @@ function handleHttp(
     }
   }
   if (url === '/api/mark' && req.method === 'POST') {
-    control.mark(tenant);
-    return send(200, { ok: true });
+    control
+      .mark(tenant)
+      .then((result) => send(200, { ok: true, ...result }))
+      .catch(() => send(200, { ok: true }));
+    return;
   }
   if (url === '/api/export') {
     if (req.method === 'GET') return send(200, control.exportAll(tenant));

@@ -23,6 +23,7 @@ import { AiUsageMeter, type UsageMeter } from './ai-usage';
 import type { TeamStore } from './team-store';
 import type { PushStore, PushSubscription } from './push-store';
 import { kickViewers, twitchViewers, youtubeViewers } from './viewers';
+import { createTwitchClip } from './clip';
 import { logger } from './logger';
 import { metrics } from './metrics';
 
@@ -94,8 +95,8 @@ export class Hub {
   disconnect(tenant: string): SessionState {
     return this.tenant(tenant).controller.disconnect();
   }
-  mark(tenant: string): void {
-    this.tenant(tenant).controller.mark();
+  mark(tenant: string): Promise<{ clipUrl?: string }> {
+    return this.tenant(tenant).controller.mark();
   }
   updateSettings(tenant: string, patch: unknown): EngineSettings {
     const next = this.tenant(tenant).settings.update(patch);
@@ -224,6 +225,15 @@ export class Hub {
       makeTwitchAdapter,
       makeYouTubeAdapter,
       fetchViewers: (platform, channel) => this.fetchViewers(id, platform, channel),
+      // "clip that" → a real Twitch clip via Helix (creator's token, clips:edit scope).
+      clip: link
+        ? async () => {
+            const token = await link.getToken(id);
+            return token
+              ? createTwitchClip(link.clientId, token)
+              : { ok: false, error: 'twitch not linked' };
+          }
+        : undefined,
     });
     const settings = new SettingsService(this.deps.makeSettingsStore(id), (next) => {
       // Enforce the plan: clients and the engine only ever see clamped settings.

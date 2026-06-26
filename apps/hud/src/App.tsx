@@ -124,7 +124,14 @@ export function App(): JSX.Element {
     });
     if (res.action === 'mute') setOverlay({ audio: false });
     else if (res.action === 'unmute') setOverlay({ audio: true });
-    else if (res.action === 'mark') void markMoment();
+    else if (res.action === 'mark') {
+      void markMoment().then((url) => {
+        if (url) {
+          speak('Clip saved.', overlay.volume, false);
+          setHeard((h) => ['Glance: clip saved', ...h].slice(0, 8));
+        }
+      });
+    }
     speak(res.speak, overlay.volume, true);
     setHeard((h) => [`you: ${text}`, `Glance: ${res.speak}`, ...h].slice(0, 8));
   };

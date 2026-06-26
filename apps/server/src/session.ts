@@ -16,6 +16,7 @@ import type { AIProvider } from '@glance/ai';
 import { GlanceEngine } from './engine';
 import type { Storage } from './storage';
 import { metrics } from './metrics';
+import type { ClipResult } from './clip';
 
 export interface SessionDeps {
   ai: AIProvider;
@@ -29,6 +30,8 @@ export interface SessionDeps {
   makeYouTubeAdapter?: (channel: string) => PlatformAdapter | null;
   /** Optional live viewer-count fetcher per platform. */
   fetchViewers?: (platform: Platform, channel: string) => Promise<number | null>;
+  /** Optional platform clip creator (Twitch Helix), fired by "clip that" voice marks. */
+  clip?: () => Promise<ClipResult>;
 }
 
 /**
@@ -179,9 +182,20 @@ export class SessionController {
     return this.state;
   }
 
-  /** Flag the current moment in the session record (voice "clip that"). */
-  mark(): void {
-    this.recorder?.recordMarker('creator mark');
+  /**
+   * Flag the current moment in the session record (voice "clip that"). When the
+   * channel is on Twitch and a clipper is configured, also create a real Twitch
+   * clip and record its link beside the marker. Returns the clip URL if one was made.
+   */
+  async mark(): Promise<{ clipUrl?: string }> {
+    const rec = this.recorder;
+    rec?.recordMarker('creator mark');
+    if (!this.deps.clip || this.state.platform !== 'twitch') return {};
+    const result = await this.deps.clip();
+    if (!result.ok || !result.url) return {};
+    // The session can end while the clip is being created; only record if still live.
+    if (this.recorder === rec) rec?.recordMarker(`clip: ${result.url}`);
+    return { clipUrl: result.url };
   }
 
   shutdown(): void {
