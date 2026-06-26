@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import type {
   ChannelEvent,
+  ChatSummary,
   DashboardStats,
   EngineSettings,
   PriorityCallout,
@@ -22,6 +23,7 @@ export interface Feed {
   session: SessionState | null;
   settings: EngineSettings | null;
   stats: DashboardStats | null;
+  summary: ChatSummary | null;
 }
 
 const TOKEN = import.meta.env['VITE_GLANCE_TOKEN'] as string | undefined;
@@ -44,6 +46,7 @@ export function useFeed(): Feed {
   const [session, setSession] = useState<SessionState | null>(null);
   const [settings, setSettings] = useState<EngineSettings | null>(null);
   const [stats, setStats] = useState<DashboardStats | null>(null);
+  const [summary, setSummary] = useState<ChatSummary | null>(null);
   const wsRef = useRef<WebSocket | null>(null);
 
   useEffect(() => {
@@ -83,6 +86,9 @@ export function useFeed(): Feed {
           case 'stats':
             setStats(msg.data);
             break;
+          case 'summary':
+            setSummary(msg.data);
+            break;
           default:
             break;
         }
@@ -97,5 +103,5 @@ export function useFeed(): Feed {
     };
   }, []);
 
-  return { status, priorities, events, session, settings, stats };
+  return { status, priorities, events, session, settings, stats, summary };
 }

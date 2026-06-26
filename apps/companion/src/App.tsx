@@ -1,9 +1,11 @@
 import { useEffect, useRef, useState } from 'react';
+import { parseVoiceCommand } from '@glance/core';
 import { useFeed } from './useFeed';
 import { earcon, speak } from './audio';
+import { useVoice } from './useVoice';
 
 export function App(): JSX.Element {
-  const { status, priorities, events, session, settings, stats } = useFeed();
+  const { status, priorities, events, session, settings, stats, summary } = useFeed();
   const [audio, setAudio] = useState(true);
   const [volume, setVolume] = useState(0.8);
   const [notify, setNotify] = useState(false);
@@ -13,6 +15,25 @@ export function App(): JSX.Element {
 
   const top = priorities[0];
   const viewers = session?.viewers ?? null;
+
+  // "Ask Glance": speech → intent → spoken answer (and optional mute/unmute action).
+  const handleTranscript = (text: string): void => {
+    const res = parseVoiceCommand(text, {
+      viewers: session?.viewers ?? null,
+      chatters: stats?.chatters ?? 0,
+      bitsTotal: stats?.bitsTotal ?? 0,
+      questionsWaiting: stats?.questionsWaiting ?? 0,
+      mood: stats?.mood ?? 'neutral',
+      topSupporter: stats?.topSupporters?.[0],
+      summary: summary?.headline,
+      topPriority: top ? { author: top.author, text: top.text } : undefined,
+    });
+    if (res.action === 'mute') setAudio(false);
+    else if (res.action === 'unmute') setAudio(true);
+    speak(res.speak, volume, true);
+    setHeard((h) => [`you: ${text}`, `Glance: ${res.speak}`, ...h].slice(0, 12));
+  };
+  const voice = useVoice(handleTranscript);
 
   // Priority callouts: chime / speak per the routing matrix, and notify when backgrounded.
   useEffect(() => {
@@ -81,6 +102,16 @@ export function App(): JSX.Element {
           onChange={(e) => setVolume(Number(e.target.value))}
         />
       </label>
+
+      {voice.supported && (
+        <button
+          type="button"
+          className={`c-mic ${voice.listening ? 'on' : ''}`}
+          onClick={voice.toggle}
+        >
+          {voice.listening ? 'Listening…' : '🎤 Ask Glance'}
+        </button>
+      )}
 
       {top && (
         <div className="c-priority">
