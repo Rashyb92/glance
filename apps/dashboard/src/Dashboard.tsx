@@ -313,6 +313,8 @@ function TuningCard({ settings }: { settings: EngineSettings | null }): JSX.Elem
   const [aiPriorities, setAiPriorities] = useState(true);
   const [moderation, setModeration] = useState(true);
   const [sensitivity, setSensitivity] = useState(0.5);
+  const [retentionDays, setRetentionDays] = useState(30);
+  const [storeText, setStoreText] = useState(true);
   const debounce = useRef<ReturnType<typeof setTimeout> | null>(null);
   const kwFocused = useRef(false);
 
@@ -325,6 +327,8 @@ function TuningCard({ settings }: { settings: EngineSettings | null }): JSX.Elem
     setAiPriorities(settings.aiPriorities);
     setModeration(settings.moderation);
     setSensitivity(settings.moderationSensitivity);
+    setRetentionDays(settings.retentionDays);
+    setStoreText(settings.storeMessageText);
     if (!kwFocused.current) setKeywords(settings.keywords.join(', '));
   }, [settings]);
 
@@ -491,6 +495,38 @@ function TuningCard({ settings }: { settings: EngineSettings | null }): JSX.Elem
             ))}
           </div>
         </div>
+
+        <div className="tune-checks">
+          <label className="tune-check">
+            <input
+              type="checkbox"
+              checked={storeText}
+              onChange={(e) => {
+                setStoreText(e.target.checked);
+                push({ storeMessageText: e.target.checked });
+              }}
+            />
+            Store chat text in replays
+            <span className="hint-sm"> off = privacy mode (metadata only)</span>
+          </label>
+        </div>
+        <label className="tune-row">
+          <span>
+            Keep replays <b>{retentionDays === 0 ? 'forever' : `${retentionDays} days`}</b>
+          </span>
+          <input
+            type="range"
+            min={0}
+            max={365}
+            step={1}
+            value={retentionDays}
+            onChange={(e) => {
+              const v = Number(e.target.value);
+              setRetentionDays(v);
+              push({ retentionDays: v });
+            }}
+          />
+        </label>
       </div>
     </Card>
   );
