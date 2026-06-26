@@ -1,0 +1,14 @@
+{
+  "name": "Glance Companion",
+  "short_name": "Glance",
+  "description": "Hear what matters in your live chat — hands-free.",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#0a0a0f",
+  "theme_color": "#0a0a0f",
+  "icons": [
+    { "src": "/icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any maskable" }
+  ]
+}

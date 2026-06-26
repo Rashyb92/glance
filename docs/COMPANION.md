@@ -39,17 +39,18 @@ GET  /api/push             -> [ { id, platform, endpoint, createdAt } ]
 DELETE /api/push/:id
 ```
 
-## Phone companion (native, planned)
+## Phone companion (PWA built; native shell later)
 
-The companion is the **always-on client**: it holds the WebSocket (or registers for push
-when backgrounded), renders the HUD + the Earbud audio experience, and registers its push
-token. It's the hub the watch pairs with. Because it consumes the same protocol as the
-browser HUD, most of its logic is a port, not new design.
+**Built**: `apps/companion` — an installable PWA (Vite + React) that consumes the same feed
+protocol and renders the audio-first Earbud experience (Listening orb, volume, last-heard)
+plus a viewer/chatter glance and the top priority callout. Add-to-Home-Screen installs it
+(web manifest + service worker); run it at `http://localhost:5175` (`pnpm dev`). It's
+token-aware like the other clients, so it pairs to the creator's tenant.
 
-To go live it needs: a thin native shell (iOS/Android, or React Native to reuse the HUD),
-APNs/FCM registration, and an `ApnsPushProvider` / `FcmPushProvider` implementing the
-existing `PushProvider` interface (token auth + the platform payload). The server side is
-already done.
+This is the **always-on client** the watch pairs with. What's left to extend it: true
+*background* push (screen off / app closed) needs Web Push (VAPID + a `WebPushProvider`
+behind the existing `PushProvider` interface) or the native shell with APNs/FCM. The
+foreground audio + glance + local notifications work today.
 
 ## Apple Watch (native, planned — satellite of the phone)
 

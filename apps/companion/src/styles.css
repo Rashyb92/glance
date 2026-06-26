@@ -1,0 +1,175 @@
+:root {
+  color-scheme: dark;
+}
+* {
+  box-sizing: border-box;
+}
+body {
+  margin: 0;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
+  background: radial-gradient(120% 120% at 50% 0%, #14141c 0%, #0a0a0f 70%);
+  color: #e8e8f0;
+  -webkit-font-smoothing: antialiased;
+}
+
+.companion {
+  min-height: 100dvh;
+  max-width: 480px;
+  margin: 0 auto;
+  padding: env(safe-area-inset-top) 20px env(safe-area-inset-bottom);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 18px;
+}
+
+.c-top {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding-top: 16px;
+}
+.c-brand {
+  font-weight: 700;
+  letter-spacing: 0.5px;
+}
+.c-meta {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+  font-size: 13px;
+  opacity: 0.85;
+}
+.c-status {
+  text-transform: uppercase;
+  font-size: 11px;
+  letter-spacing: 1px;
+}
+.c-status-online {
+  color: #5ee0a0;
+}
+.c-status-offline {
+  color: #ff6b6b;
+}
+.c-status-connecting {
+  color: #c8c8d2;
+}
+
+.c-orb {
+  width: 180px;
+  height: 180px;
+  border-radius: 50%;
+  border: 2px solid #3a3a44;
+  background: transparent;
+  color: #9a9aa6;
+  font-size: 19px;
+  cursor: pointer;
+  margin-top: 8px;
+  transition:
+    box-shadow 0.2s,
+    background 0.2s,
+    border-color 0.2s,
+    color 0.2s;
+}
+.c-orb.on {
+  border-color: #7c5cff;
+  background: rgba(124, 92, 255, 0.13);
+  color: #fff;
+  box-shadow: 0 0 50px rgba(124, 92, 255, 0.4);
+}
+
+.c-vol {
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  font-size: 13px;
+}
+.c-vol input {
+  width: 100%;
+}
+
+.c-priority {
+  width: 100%;
+  background: rgba(124, 92, 255, 0.1);
+  border: 1px solid rgba(124, 92, 255, 0.3);
+  border-radius: 14px;
+  padding: 14px;
+}
+.c-priority-tag {
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 1.5px;
+  color: #b9a6ff;
+}
+.c-priority-text {
+  margin-top: 6px;
+  font-size: 16px;
+  line-height: 1.4;
+}
+.c-priority-reason {
+  margin-top: 4px;
+  font-size: 12px;
+  opacity: 0.6;
+}
+
+.c-glance {
+  width: 100%;
+  display: flex;
+  gap: 10px;
+}
+.c-stat {
+  flex: 1;
+  background: rgba(255, 255, 255, 0.03);
+  border-radius: 12px;
+  padding: 12px;
+  text-align: center;
+}
+.c-stat-value {
+  font-size: 20px;
+  font-weight: 700;
+}
+.c-stat-label {
+  font-size: 11px;
+  opacity: 0.55;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  margin-top: 2px;
+}
+
+.c-heard {
+  width: 100%;
+}
+.c-heard-label {
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  opacity: 0.5;
+  margin-bottom: 6px;
+}
+.c-line {
+  font-size: 14px;
+  padding: 7px 0;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+}
+.c-hint {
+  font-size: 13px;
+  opacity: 0.5;
+}
+
+.c-alt {
+  background: transparent;
+  border: 1px solid #3a3a44;
+  color: #c8c8d2;
+  border-radius: 10px;
+  padding: 10px 16px;
+  cursor: pointer;
+}
+.c-foot {
+  font-size: 12px;
+  opacity: 0.45;
+  text-align: center;
+  margin-top: auto;
+  padding-bottom: 8px;
+}
