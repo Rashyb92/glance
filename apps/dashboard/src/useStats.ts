@@ -1,0 +1,71 @@
+import { useEffect, useRef, useState } from 'react';
+import type { ChatSummary, DashboardStats, ScoredMessage, ServerMessage } from '@glance/core';
+
+export type ConnectionStatus = 'connecting' | 'online' | 'offline';
+
+export interface DashState {
+  status: ConnectionStatus;
+  stats: DashboardStats | null;
+  summary: ChatSummary | null;
+  ticker: ScoredMessage[];
+}
+
+const WS_PORT = (import.meta.env['VITE_GLANCE_WS'] as string | undefined) ?? '8787';
+const WS_URL = `ws://localhost:${WS_PORT}`;
+
+/** Subscribes to the gateway and exposes the latest dashboard stats, AI summary
+ *  and a small ticker of high-salience messages. Auto-reconnects. */
+export function useStats(): DashState {
+  const [status, setStatus] = useState<ConnectionStatus>('connecting');
+  const [stats, setStats] = useState<DashboardStats | null>(null);
+  const [summary, setSummary] = useState<ChatSummary | null>(null);
+  const [ticker, setTicker] = useState<ScoredMessage[]>([]);
+  const wsRef = useRef<WebSocket | null>(null);
+
+  useEffect(() => {
+    let closedByUs = false;
+    let retry: ReturnType<typeof setTimeout> | null = null;
+
+    const connect = (): void => {
+      setStatus((s) => (s === 'online' ? s : 'connecting'));
+      const ws = new WebSocket(WS_URL);
+      wsRef.current = ws;
+      ws.onopen = () => setStatus('online');
+      ws.onerror = () => ws.close();
+      ws.onclose = () => {
+        setStatus('offline');
+        if (!closedByUs) retry = setTimeout(connect, 1500);
+      };
+      ws.onmessage = (ev: MessageEvent) => {
+        let msg: ServerMessage;
+        try {
+          msg = JSON.parse(ev.data as string) as ServerMessage;
+        } catch {
+          return;
+        }
+        switch (msg.type) {
+          case 'stats':
+            setStats(msg.data);
+            break;
+          case 'summary':
+            setSummary(msg.data);
+            break;
+          case 'message':
+            if (msg.data.score >= 0.5) setTicker((p) => [msg.data, ...p].slice(0, 8));
+            break;
+          default:
+            break;
+        }
+      };
+    };
+
+    connect();
+    return () => {
+      closedByUs = true;
+      if (retry) clearTimeout(retry);
+      wsRef.current?.close();
+    };
+  }, []);
+
+  return { status, stats, summary, ticker };
+}

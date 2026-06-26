@@ -1,0 +1,162 @@
+# Glance
+
+**The calm, AI-curated heads-up layer for live creators.**
+
+Glance reads a streamer's live chat in real time, decides what actually matters
+(a donation, a raid, a real question, a trend — not the 400 emotes around it), and
+surfaces it as a calm, peripheral overlay. This repo is the **core loop**, running
+end-to-end on your machine:
+
+```
+  Twitch IRC ──┐
+  (anonymous)  │     ┌───────────┐     ┌───────────────┐    ws://     ┌────────────┐
+  Demo feed ───┼───▶ │ Platform  │ ──▶ │ Glance Engine │ ─────────▶  │   HUD      │
+               │     │ Adapter   │     │  salience +   │  HudItem     │  (browser, │
+  Kick / YT ───┘     └───────────┘     │  AI summary   │  stream      │   later    │
+  (future)                              └──────┬────────┘              │   glasses) │
+                                               │ summarize()           └────────────┘
+                                        ┌──────▼───────┐
+                                        │  AI Provider │   Claude · rule-based fallback
+                                        └──────────────┘
+```
+
+No API keys, OAuth, or hardware are required to see it work — Twitch chat is read
+anonymously, and a built-in demo feed keeps the HUD alive even on a quiet channel.
+
+---
+
+## Prerequisites
+
+- **Node.js 20.12+** (Node 22 LTS recommended) — <https://nodejs.org>
+- **pnpm 9** — comes bundled with Node via Corepack (enabled below)
+
+Check Node:
+
+```powershell
+node --version
+```
+
+---
+
+## Setup (Windows / PowerShell)
+
+From the project folder (`C:\Users\Rashe\Desktop\Glance Code`):
+
+```powershell
+# 1. Enable pnpm (ships with Node, no install needed)
+corepack enable
+
+# 2. Install all workspace dependencies
+pnpm install
+```
+
+> If `corepack enable` is blocked, install pnpm directly: `npm install -g pnpm@9`.
+
+That's it — no `.env` needed for the first run.
+
+---
+
+## Run
+
+```powershell
+pnpm dev
+```
+
+This starts **both** the server and the HUD together. Then open:
+
+> **http://localhost:5173**
+
+You'll see the Glance HUD come alive with a live demo feed: chatter flowing, the
+occasional donation and raid breaking through, and AI summaries appearing on a
+timer. Use the **Raw Flow / AI Assist / Hybrid** switch at the bottom to feel the
+difference — Hybrid is the one to watch.
+
+Run just one side if you prefer:
+
+```powershell
+pnpm server   # the pipeline only (ws://localhost:8787)
+pnpm hud      # the interface only (http://localhost:5173)
+```
+
+---
+
+## Point it at a real Twitch channel
+
+Create a `.env` file in the project root (copy from `.env.example`):
+
+```ini
+GLANCE_CHANNEL=somelivechannel   # any channel that is currently LIVE
+GLANCE_DEMO=false                # turn the synthetic feed off for real chat only
+```
+
+Restart `pnpm dev`. Glance connects to that channel's chat anonymously — real
+messages, real cheers, real raids, scored live. Pick a channel that is actually
+streaming, or chat will be quiet.
+
+## Turn on Claude (optional)
+
+Without a key, Glance uses its deterministic rule-based summariser. Add a key to
+light up Claude-powered summaries in **AI Assist** and **Hybrid**:
+
+```ini
+ANTHROPIC_API_KEY=sk-ant-...
+GLANCE_AI_MODEL=claude-haiku-4-5-20251001   # fast + cheap; override if you like
+```
+
+Glance falls back to the rule-based engine automatically if the key is missing or
+a call fails — the HUD never goes dark.
+
+---
+
+## Scripts
+
+| Command           | What it does                                              |
+| ----------------- | -------------------------------------------------------- |
+| `pnpm dev`        | Run the server + HUD together (the demo)                 |
+| `pnpm server`     | Run just the pipeline / WebSocket gateway                |
+| `pnpm hud`        | Run just the browser HUD                                 |
+| `pnpm test`       | Run unit tests (the salience engine)                     |
+| `pnpm typecheck`  | Type-check every package                                 |
+| `pnpm lint`       | Lint the workspace                                       |
+| `pnpm format`     | Format with Prettier                                     |
+| `pnpm build`      | Production build of the HUD                              |
+
+---
+
+## Monorepo layout
+
+```
+glance/
+├─ packages/
+│  ├─ core/        @glance/core      Pure salience engine + shared types (no deps, fully tested)
+│  ├─ platforms/   @glance/platforms PlatformAdapter seam + Twitch (anonymous) + Demo adapters
+│  └─ ai/          @glance/ai        AIProvider seam + Claude provider + rule-based fallback
+└─ apps/
+   ├─ server/      @glance/server    Wires adapter → engine → AI, broadcasts over WebSocket
+   └─ hud/         @glance/hud       React peripheral overlay (the "glasses" preview)
+```
+
+The three packages are independent and swappable by design — see
+[`ARCHITECTURE.md`](./ARCHITECTURE.md) for how Kick/YouTube, other AI models, and
+real glasses slot in without touching the rest of the system.
+
+---
+
+## The three modes
+
+- **Raw Flow** — every message flows, paced for readability. Low-salience lines dim.
+- **AI Assist** — individual messages step back; only AI summaries of the room show.
+- **Hybrid** *(the wedge)* — chat flows, but only what matters breaks through:
+  donations, raids, real questions, trends. This is attention management for creators.
+
+---
+
+## Troubleshooting
+
+- **HUD says "offline"** — the server isn't up yet. With `pnpm dev` it reconnects
+  automatically within a couple of seconds; give it a moment.
+- **No real messages** — your `GLANCE_CHANNEL` isn't live, or `GLANCE_DEMO=false`
+  on a quiet channel. Set a live channel or re-enable the demo feed.
+- **`pnpm` not found** — run `corepack enable`, or `npm install -g pnpm@9`.
+- **Port already in use** — change `GLANCE_WS_PORT` in `.env` (and `VITE_GLANCE_WS`
+  in `apps/hud/.env` to match).
