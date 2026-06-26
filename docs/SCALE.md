@@ -84,13 +84,43 @@ connection handler) `await` — a small, scoped change to the one hardened file.
 - **Redis cluster** for the Bus + counters.
 - **Postgres** (with read replicas) for durable state, behind the existing storage interfaces.
 
+## Durable state (Postgres)
+
+Every per-tenant store — settings, OAuth tokens, teams, entitlements, push devices — is
+"one JSON blob per key", so they all map onto one `KvStore` abstraction
+(`apps/server/src/kv.ts`): `MemoryKvStore` for dev/tests, `PgKvStore` for durable
+multi-instance (a single `glance_kv(key text primary key, value text)` table, fully
+parameterized). Keys namespace by kind + tenant — `settings:<tenant>`,
+`token:<tenant>:twitch`, `team:<tenant>`, … — and both implementations pass the same
+behavioural suite (`kv.test.ts`).
+
+The high-volume **session archive** (`Storage`) is the one store that wants real columns
+(queried by `started_at` / `channel`). Its interface is currently synchronous (file-backed);
+adopting a `PgStorage` means making `Storage` async — but every call is in a non-hot path
+(archive-on-teardown and replay REST reads), so it's a contained change, and the realtime
+path never touches storage.
+
+A real `pg` Pool satisfies the `SqlClient` interface (`src/sql.ts`) directly:
+`{ query: (text, params) => pool.query(text, params) }`.
+
+## Worker sharding
+
+Tenants distribute across stateless workers by consistent hash (`src/sharding.ts`):
+`ownsShard(tenant, myShard, totalShards)` — a worker lazy-creates only the tenants it owns,
+so 20k creators spread evenly (verified balanced in `scale-infra.test.ts`). Each worker
+holds its upstream readers in a capacity-bounded `ConnectionPool` (`src/pool.ts`) so it
+can't be overloaded, and `staggerOffset(tenant, windowMs)` spreads periodic work (YouTube
+polls) across the interval instead of firing them all at once.
+
 ## What's left for true 20k scale
 
-1. **Redis wiring** — adapter above (small; the primitives are built + tested). ✅ primitives done.
-2. **Postgres implementations** behind `Storage` / `SettingsStore` / `TokenStore` / `PushStore` / etc.
-3. **Connection pooling & sharding** for the 20k upstream readers — Twitch EventSub subscription
-   pooling, YouTube poll staggering + idle backoff, Kick Pusher pooling. This is the real ops effort.
-4. **Gateway async rate-limit** wiring (above) if you need fleet-wide limits.
+1. **Redis wiring** — the adapter above. ✅ primitives built + tested.
+2. **Postgres** — ✅ KV foundation built + tested. Remaining: point the per-tenant stores at
+   `PgKvStore`, and the async-`Storage` migration for the session archive.
+3. **Connection orchestration** — ✅ sharding + pool primitives built + tested. Remaining: the
+   provider-specific glue (Twitch EventSub subscription pooling, YouTube poll staggering + idle
+   backoff, Kick Pusher pooling). This is the real ops effort.
+4. **Gateway async rate-limit** wiring if you need fleet-wide limits.
 
 Nothing here is exotic — it's standard horizontal infra, and the expensive/risky parts
 (AI cost, tail latency) are already bounded by design.
