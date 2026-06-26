@@ -29,6 +29,7 @@ export interface GatewayControl {
   getSession: (tenant: string) => SessionState;
   connect: (tenant: string, channel: string, demo: boolean, platform: Platform) => SessionState;
   disconnect: (tenant: string) => SessionState;
+  mark: (tenant: string) => void;
   getSettings: (tenant: string) => EngineSettings;
   updateSettings: (tenant: string, patch: unknown) => EngineSettings;
   listSessions: (tenant: string) => SessionSummary[];
@@ -299,6 +300,10 @@ function handleHttp(
         .catch((err: Error) => send(err.message === 'too_large' ? 413 : 400, { error: err.message }));
       return;
     }
+  }
+  if (url === '/api/mark' && req.method === 'POST') {
+    control.mark(tenant);
+    return send(200, { ok: true });
   }
   if (url === '/api/export') {
     if (req.method === 'GET') return send(200, control.exportAll(tenant));

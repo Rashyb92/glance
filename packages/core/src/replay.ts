@@ -19,7 +19,8 @@ export interface ReplayMoment {
 export type TimelineEntry =
   | { kind: 'event'; atSec: number; eventKind: ChannelEventKind; summary: string }
   | { kind: 'donation'; atSec: number; author: string; bits: number }
-  | { kind: 'summary'; atSec: number; headline: string };
+  | { kind: 'summary'; atSec: number; headline: string }
+  | { kind: 'marker'; atSec: number; label: string };
 
 export interface SessionSummary {
   id: string;

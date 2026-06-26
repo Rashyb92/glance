@@ -171,6 +171,14 @@ function TimelineRow({ entry }: { entry: TimelineEntry }): JSX.Element {
       </div>
     );
   }
+  if (entry.kind === 'marker') {
+    return (
+      <div className="tl">
+        <span className="tl-at">{at}</span>
+        <span className="tl-dot" style={{ background: '#7c5cff' }} />★ {entry.label}
+      </div>
+    );
+  }
   return (
     <div className="tl">
       <span className="tl-at">{at}</span>

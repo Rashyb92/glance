@@ -51,6 +51,19 @@ describe('SessionRecorder', () => {
     const r = new SessionRecorder('s3', 'c', null, 0);
     expect(r.hasContent()).toBe(false);
   });
+
+  it('records creator markers into the timeline and counts as content', () => {
+    const r = new SessionRecorder('s4', 'c', 'twitch', 0);
+    expect(r.hasContent()).toBe(false);
+    r.recordMarker('creator mark', 5000);
+    expect(r.hasContent()).toBe(true);
+    const d = r.finalize(6000, null);
+    expect(d.timeline.find((t) => t.kind === 'marker')).toMatchObject({
+      kind: 'marker',
+      atSec: 5,
+      label: 'creator mark',
+    });
+  });
 });
 
 describe('SessionRecorder — privacy redaction', () => {

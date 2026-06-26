@@ -3,6 +3,7 @@ import { parseVoiceCommand } from '@glance/core';
 import { useFeed } from './useFeed';
 import { earcon, speak } from './audio';
 import { useVoice } from './useVoice';
+import { markMoment } from './api';
 
 export function App(): JSX.Element {
   const { status, priorities, events, session, settings, stats, summary } = useFeed();
@@ -27,9 +28,11 @@ export function App(): JSX.Element {
       topSupporter: stats?.topSupporters?.[0],
       summary: summary?.headline,
       topPriority: top ? { author: top.author, text: top.text } : undefined,
+      uptimeSec: stats?.uptimeSec,
     });
     if (res.action === 'mute') setAudio(false);
     else if (res.action === 'unmute') setAudio(true);
+    else if (res.action === 'mark') void markMoment();
     speak(res.speak, volume, true);
     setHeard((h) => [`you: ${text}`, `Glance: ${res.speak}`, ...h].slice(0, 12));
   };

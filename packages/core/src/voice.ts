@@ -16,9 +16,10 @@ export interface VoiceSnapshot {
   topSupporter?: { author: string; bits: number };
   summary?: string;
   topPriority?: { author?: string; text: string };
+  uptimeSec?: number;
 }
 
-export type VoiceAction = 'mute' | 'unmute' | 'none';
+export type VoiceAction = 'mute' | 'unmute' | 'mark' | 'none';
 
 export interface VoiceResponse {
   intent: string;
@@ -35,6 +36,18 @@ export function parseVoiceCommand(transcript: string, snap: VoiceSnapshot): Voic
   }
   if (has('unmute', 'resume', 'start listening', 'listen up')) {
     return { intent: 'unmute', action: 'unmute', speak: 'Listening.' };
+  }
+  if (has('clip', 'mark that', 'save that', 'bookmark')) {
+    return { intent: 'mark', action: 'mark', speak: 'Marked this moment.' };
+  }
+  if (has('top supporter', 'top donor', 'biggest tip', 'biggest supporter', 'who is my top')) {
+    return {
+      intent: 'topSupporter',
+      action: 'none',
+      speak: snap.topSupporter
+        ? `Your top supporter is ${snap.topSupporter.author} with ${snap.topSupporter.bits} bits.`
+        : 'No supporters yet this session.',
+    };
   }
   if (has('donation', 'donate', 'bits', 'tips', 'money', 'cheer')) {
     if (snap.bitsTotal > 0) {
@@ -80,9 +93,24 @@ export function parseVoiceCommand(transcript: string, snap: VoiceSnapshot): Voic
   if (has('mood', 'vibe', 'feel')) {
     return { intent: 'mood', action: 'none', speak: `The vibe is ${snap.mood}.` };
   }
+  if (has('how long', 'uptime', 'been live', 'live for')) {
+    return {
+      intent: 'uptime',
+      action: 'none',
+      speak:
+        snap.uptimeSec != null ? `Live for ${formatDuration(snap.uptimeSec)}.` : "I don't have the uptime.",
+    };
+  }
   return {
     intent: 'unknown',
     action: 'none',
-    speak: 'I can tell you about donations, questions, viewers, the mood, or a summary.',
+    speak: 'I can tell you about donations, questions, viewers, the mood, the summary, or clip a moment.',
   };
+}
+
+function formatDuration(sec: number): string {
+  const h = Math.floor(sec / 3600);
+  const m = Math.floor((sec % 3600) / 60);
+  if (h > 0) return `${h} hour${h === 1 ? '' : 's'} ${m} minute${m === 1 ? '' : 's'}`;
+  return `${m} minute${m === 1 ? '' : 's'}`;
 }

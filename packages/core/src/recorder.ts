@@ -18,6 +18,7 @@ export class SessionRecorder {
   private bits = 0;
   private events = 0;
   private peakChatters = 0;
+  private markers = 0;
   private top: TimedMoment[] = [];
   private timeline: TimelineEntry[] = [];
   private lastSummaryNorm = '';
@@ -34,7 +35,7 @@ export class SessionRecorder {
   }
 
   hasContent(): boolean {
-    return this.messages > 0 || this.events > 0;
+    return this.messages > 0 || this.events > 0 || this.markers > 0;
   }
 
   /** Top scored messages — used as the AI recap input. */
@@ -72,6 +73,12 @@ export class SessionRecorder {
     if (norm === this.lastSummaryNorm) return;
     this.lastSummaryNorm = norm;
     this.timeline.push({ kind: 'summary', atSec: this.sec(now), headline: summary.headline });
+  }
+
+  /** Flag a moment the creator marked (voice "clip that"), for review in replay. */
+  recordMarker(label: string, now: number = Date.now()): void {
+    this.markers += 1;
+    this.timeline.push({ kind: 'marker', atSec: this.sec(now), label });
   }
 
   observeChatters(chatters: number): void {

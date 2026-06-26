@@ -94,6 +94,9 @@ export class Hub {
   disconnect(tenant: string): SessionState {
     return this.tenant(tenant).controller.disconnect();
   }
+  mark(tenant: string): void {
+    this.tenant(tenant).controller.mark();
+  }
   updateSettings(tenant: string, patch: unknown): EngineSettings {
     const next = this.tenant(tenant).settings.update(patch);
     return applyPlanLimits(next, this.planId(tenant));

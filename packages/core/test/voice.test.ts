@@ -10,6 +10,7 @@ const base: VoiceSnapshot = {
   topSupporter: { author: 'Whale', bits: 500 },
   summary: 'Chat is loving the new map.',
   topPriority: { author: 'Ana', text: 'what sensitivity do you use?' },
+  uptimeSec: 7200,
 };
 
 describe('parseVoiceCommand', () => {
@@ -52,5 +53,26 @@ describe('parseVoiceCommand', () => {
     };
     expect(parseVoiceCommand('donations', empty).speak).toBe('No bits yet this session.');
     expect(parseVoiceCommand('viewers', empty).speak).toContain("isn't available");
+    expect(parseVoiceCommand('top supporter', empty).speak).toContain('No supporters');
+  });
+
+  it('marks a moment on "clip that"', () => {
+    const r = parseVoiceCommand('clip that', base);
+    expect(r.intent).toBe('mark');
+    expect(r.action).toBe('mark');
+    expect(parseVoiceCommand('mark that moment', base).action).toBe('mark');
+  });
+
+  it('names the top supporter', () => {
+    const r = parseVoiceCommand('who is my top supporter', base);
+    expect(r.intent).toBe('topSupporter');
+    expect(r.speak).toContain('Whale');
+    expect(r.speak).toContain('500');
+  });
+
+  it('reports uptime in hours and minutes', () => {
+    const r = parseVoiceCommand('how long have I been live', base);
+    expect(r.intent).toBe('uptime');
+    expect(r.speak).toContain('2 hours');
   });
 });

@@ -179,6 +179,11 @@ export class SessionController {
     return this.state;
   }
 
+  /** Flag the current moment in the session record (voice "clip that"). */
+  mark(): void {
+    this.recorder?.recordMarker('creator mark');
+  }
+
   shutdown(): void {
     this.teardown();
   }

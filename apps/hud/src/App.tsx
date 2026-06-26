@@ -11,6 +11,9 @@ import { useGlanceFeed, type ConnectionStatus } from './useGlanceFeed';
 import { useOverlaySettings, type OverlaySettings } from './useOverlaySettings';
 import { earcon, speak } from './audio';
 import { useBattery, type BatteryState } from './useBattery';
+import { parseVoiceCommand } from '@glance/core';
+import { useVoice, type Voice } from './useVoice';
+import { markMoment } from './api';
 
 // Fallback until the server broadcasts its live engine threshold.
 const FALLBACK_THRESHOLD = 0.5;
@@ -50,7 +53,8 @@ const MODE_LABEL: Record<InteractionMode, string> = {
 };
 
 export function App(): JSX.Element {
-  const { status, messages, events, summary, session, settings, priorities } = useGlanceFeed();
+  const { status, messages, events, summary, session, settings, priorities, stats } =
+    useGlanceFeed();
   const [overlay, setOverlay] = useOverlaySettings();
   const [mode, setMode] = useState<InteractionMode>('hybrid');
   const [panelOpen, setPanelOpen] = useState(false);
@@ -106,6 +110,26 @@ export function App(): JSX.Element {
     }
   }, [events, overlay.audio, overlay.volume, settings]);
 
+  const handleTranscript = (text: string): void => {
+    const res = parseVoiceCommand(text, {
+      viewers: session?.viewers ?? null,
+      chatters: stats?.chatters ?? 0,
+      bitsTotal: stats?.bitsTotal ?? 0,
+      questionsWaiting: stats?.questionsWaiting ?? 0,
+      mood: stats?.mood ?? 'neutral',
+      topSupporter: stats?.topSupporters?.[0],
+      summary: summary?.headline,
+      topPriority: topPriority ? { author: topPriority.author, text: topPriority.text } : undefined,
+      uptimeSec: stats?.uptimeSec,
+    });
+    if (res.action === 'mute') setOverlay({ audio: false });
+    else if (res.action === 'unmute') setOverlay({ audio: true });
+    else if (res.action === 'mark') void markMoment();
+    speak(res.speak, overlay.volume, true);
+    setHeard((h) => [`you: ${text}`, `Glance: ${res.speak}`, ...h].slice(0, 8));
+  };
+  const voice = useVoice(handleTranscript);
+
   const channelLabel = session?.channel
     ? `#${session.channel}`
     : session?.demo
@@ -125,6 +149,7 @@ export function App(): JSX.Element {
         viewers={viewers}
         battery={battery}
         heard={heard}
+        voice={voice}
       />
     );
   }
@@ -444,6 +469,7 @@ function AudioStage({
   viewers,
   battery,
   heard,
+  voice,
 }: {
   overlay: OverlaySettings;
   setOverlay: (patch: Partial<OverlaySettings>) => void;
@@ -453,6 +479,7 @@ function AudioStage({
   viewers: number | null;
   battery: BatteryState;
   heard: string[];
+  voice: Voice;
 }): JSX.Element {
   const accent = accentStyle?.color ?? '#7c5cff';
   return (
@@ -534,6 +561,25 @@ function AudioStage({
             onChange={(e) => setOverlay({ volume: Number(e.target.value) })}
           />
         </label>
+
+        {voice.supported && (
+          <button
+            type="button"
+            onClick={voice.toggle}
+            style={{
+              width: '100%',
+              padding: '12px 16px',
+              borderRadius: 12,
+              border: `1px solid ${voice.listening ? accent : '#3a3a44'}`,
+              background: voice.listening ? `${accent}22` : 'rgba(255,255,255,0.04)',
+              color: '#e8e8f0',
+              fontSize: 15,
+              cursor: 'pointer',
+            }}
+          >
+            {voice.listening ? 'Listening…' : '🎤 Ask Glance'}
+          </button>
+        )}
 
         <div style={{ width: '100%' }}>
           <div
