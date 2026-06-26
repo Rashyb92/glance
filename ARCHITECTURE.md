@@ -94,6 +94,23 @@ re-skins the output.
 - **Brilliant Labs / Even Realities:** a thin companion subscribes to the same
   gateway and draws text via the device SDK. The contract (`HudItem`) is identical.
 
+## Settings & persistence
+
+Two independent layers, split by ownership:
+
+- **Engine settings** (`@glance/core` `EngineSettings`) — server-owned: surface
+  threshold, keywords, AI frequency. All external input passes through
+  `normalizeEngineSettings`, the single validation boundary, so the rest of the
+  system can trust the value is well-formed and in-bounds. Persisted behind a
+  `SettingsStore` interface — `FileSettingsStore` writes atomically (temp-then-
+  rename) today; M3 swaps in a DB-backed store without touching callers — and
+  broadcast to every client as a `settings` message.
+- **Overlay settings** (HUD `OverlaySettings`) — device-local: placement, scale,
+  opacity, density, motion. Persisted in `localStorage`, never sent to the server.
+
+This mirrors the product split: the server owns *what matters*; each device owns
+*how it looks*.
+
 ## Package responsibilities
 
 | Package             | Owns                                                                 | Depends on            |

@@ -82,16 +82,20 @@ pnpm hud      # the interface only (http://localhost:5173)
 
 ## Point it at a real Twitch channel
 
-Create a `.env` file in the project root (copy from `.env.example`):
+The easy way: open the **Command Center** (http://localhost:5174), type a
+currently-live channel into the **Connect** bar, and hit Connect. The server
+switches instantly and both surfaces follow — no restart, no file editing.
+
+To set the channel Glance auto-connects to on startup, create a `.env` (copy from
+`.env.example`):
 
 ```ini
-GLANCE_CHANNEL=somelivechannel   # any channel that is currently LIVE
-GLANCE_DEMO=false                # turn the synthetic feed off for real chat only
+GLANCE_CHANNEL=somelivechannel   # auto-connect target on boot
+GLANCE_DEMO=false                # synthetic feed off (real chat only)
 ```
 
-Restart `pnpm dev`. Glance connects to that channel's chat anonymously — real
-messages, real cheers, real raids, scored live. Pick a channel that is actually
-streaming, or chat will be quiet.
+Reading is anonymous — real messages, cheers and raids, scored live. Pick a
+channel that is actually streaming, or chat will be quiet.
 
 ## Turn on Claude (optional)
 
@@ -105,6 +109,20 @@ GLANCE_AI_MODEL=claude-haiku-4-5-20251001   # fast + cheap; override if you like
 
 Glance falls back to the rule-based engine automatically if the key is missing or
 a call fails — the HUD never goes dark.
+
+---
+
+## Tune it live
+
+**In the Command Center** — server-owned, saved to `.data/settings.json`, applied
+to the running session immediately and pushed to every client:
+
+- **Surface threshold** — how high a message must score to break through in Hybrid.
+- **AI summary frequency** — how often the AI speaks.
+- **Keywords to boost** — streamer-specific terms that raise a message's salience.
+
+**In the HUD** — press the **⚙** button (saved per browser): overlay **side**,
+**size**, **opacity**, **density** and **motion**.
 
 ---
 

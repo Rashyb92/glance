@@ -65,6 +65,7 @@ export class StatsAggregator {
   private bitsTotal = 0;
   private cheers = 0;
   private giftSubs = 0;
+  private highThreshold = 0.5;
 
   constructor(
     private readonly channel: string,
@@ -73,6 +74,11 @@ export class StatsAggregator {
   ) {
     this.windowMs = windowMs;
     this.startedAt = now;
+  }
+
+  /** The salience cut-off for "high-salience" counting and best-moments. */
+  setThreshold(threshold: number): void {
+    this.highThreshold = Math.max(0, Math.min(1, threshold));
   }
 
   ingestMessage(scored: ScoredMessage, now: number = Date.now()): void {
@@ -104,7 +110,7 @@ export class StatsAggregator {
 
     for (const { scored } of this.window) {
       authors.add(scored.message.author);
-      if (scored.score >= 0.5) highCount += 1;
+      if (scored.score >= this.highThreshold) highCount += 1;
       if (scored.category === 'question') questions += 1;
       bitsWindow += scored.message.bits ?? 0;
       const norm = normalizeTrendText(scored.message.text);
@@ -159,7 +165,7 @@ export class StatsAggregator {
   }
 
   private recordMoment(scored: ScoredMessage): void {
-    if (scored.score < 0.5) return;
+    if (scored.score < this.highThreshold) return;
     const norm = normalizeTrendText(scored.message.text);
     const item: MomentItem = {
       id: scored.message.id,

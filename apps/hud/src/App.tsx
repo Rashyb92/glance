@@ -8,10 +8,16 @@ import type {
   ScoredMessage,
 } from '@glance/core';
 import { useGlanceFeed, type ConnectionStatus } from './useGlanceFeed';
+import { useOverlaySettings, type OverlaySettings } from './useOverlaySettings';
 
-// Mirrors @glance/core DEFAULT_SURFACE_THRESHOLD. Kept inline so the HUD has no
-// runtime dependency on the engine — only its types.
-const SURFACE_THRESHOLD = 0.5;
+// Fallback until the server broadcasts its live engine threshold.
+const FALLBACK_THRESHOLD = 0.5;
+
+const DENSITY_COUNTS: Record<OverlaySettings['density'], { raw: number; hybrid: number }> = {
+  compact: { raw: 10, hybrid: 6 },
+  cozy: { raw: 14, hybrid: 9 },
+  roomy: { raw: 18, hybrid: 12 },
+};
 
 const CATEGORY: Record<SalienceCategory, { label: string; glyph: string; tone: Tone }> = {
   donation: { label: 'Donation', glyph: '◆', tone: 'gold' },
@@ -41,14 +47,19 @@ const MODE_LABEL: Record<InteractionMode, string> = {
 };
 
 export function App(): JSX.Element {
-  const { status, messages, events, summary, session } = useGlanceFeed();
+  const { status, messages, events, summary, session, settings } = useGlanceFeed();
+  const [overlay, setOverlay] = useOverlaySettings();
   const [mode, setMode] = useState<InteractionMode>('hybrid');
+  const [panelOpen, setPanelOpen] = useState(false);
+
+  const threshold = settings?.surfaceThreshold ?? FALLBACK_THRESHOLD;
+  const counts = DENSITY_COUNTS[overlay.density];
 
   const surfaced = useMemo(() => {
     if (mode === 'assist') return [] as ScoredMessage[];
-    if (mode === 'raw') return messages.slice(-14);
-    return messages.filter((m) => m.score >= SURFACE_THRESHOLD).slice(-9);
-  }, [messages, mode]);
+    if (mode === 'raw') return messages.slice(-counts.raw);
+    return messages.filter((m) => m.score >= threshold).slice(-counts.hybrid);
+  }, [messages, mode, threshold, counts.raw, counts.hybrid]);
 
   const channelLabel = session?.channel
     ? `#${session.channel}`
@@ -62,7 +73,10 @@ export function App(): JSX.Element {
       <div className="scene" />
       <div className="vignette" />
 
-      <div className="hud">
+      <div
+        className={`hud place-${overlay.placement} dens-${overlay.density} ${overlay.motion ? '' : 'no-motion'}`}
+        style={{ opacity: overlay.opacity, transform: `scale(${overlay.scale})` }}
+      >
         <header className="hud-top">
           <div className="brand">
             <span className="brand-mark" aria-hidden>
@@ -73,8 +87,20 @@ export function App(): JSX.Element {
           <div className="hud-meta">
             <span className="channel">{channelLabel}</span>
             <StatusDot status={status} />
+            <button
+              type="button"
+              className="gear"
+              aria-label="Overlay settings"
+              onClick={() => setPanelOpen((o) => !o)}
+            >
+              {'⚙︎'}
+            </button>
           </div>
         </header>
+
+        {panelOpen && (
+          <OverlayPanel settings={overlay} update={setOverlay} onClose={() => setPanelOpen(false)} />
+        )}
 
         <div className={`feed mode-${mode}`}>
           {showSummary && summary && <SummaryCard summary={summary} />}
@@ -85,7 +111,7 @@ export function App(): JSX.Element {
             <MessageRow
               key={m.message.id}
               scored={m}
-              dim={mode === 'raw' && m.score < SURFACE_THRESHOLD}
+              dim={mode === 'raw' && m.score < threshold}
             />
           ))}
           {mode === 'assist' && !summary && (
@@ -115,6 +141,93 @@ export function App(): JSX.Element {
             <span className="dot-accent" /> attention engine · {messages.length} read
           </div>
         </footer>
+      </div>
+    </div>
+  );
+}
+
+function OverlayPanel({
+  settings,
+  update,
+  onClose,
+}: {
+  settings: OverlaySettings;
+  update: (patch: Partial<OverlaySettings>) => void;
+  onClose: () => void;
+}): JSX.Element {
+  return (
+    <div className="panel">
+      <div className="panel-head">
+        <span>Overlay</span>
+        <button type="button" className="panel-x" aria-label="Close" onClick={onClose}>
+          ×
+        </button>
+      </div>
+      <div className="panel-row">
+        <span>Side</span>
+        <div className="seg">
+          <button
+            type="button"
+            className={settings.placement === 'left' ? 'on' : ''}
+            onClick={() => update({ placement: 'left' })}
+          >
+            Left
+          </button>
+          <button
+            type="button"
+            className={settings.placement === 'right' ? 'on' : ''}
+            onClick={() => update({ placement: 'right' })}
+          >
+            Right
+          </button>
+        </div>
+      </div>
+      <label className="panel-row col">
+        <span>Size {Math.round(settings.scale * 100)}%</span>
+        <input
+          type="range"
+          min={0.85}
+          max={1.2}
+          step={0.05}
+          value={settings.scale}
+          onChange={(e) => update({ scale: Number(e.target.value) })}
+        />
+      </label>
+      <label className="panel-row col">
+        <span>Opacity {Math.round(settings.opacity * 100)}%</span>
+        <input
+          type="range"
+          min={0.5}
+          max={1}
+          step={0.05}
+          value={settings.opacity}
+          onChange={(e) => update({ opacity: Number(e.target.value) })}
+        />
+      </label>
+      <div className="panel-row">
+        <span>Density</span>
+        <div className="seg">
+          {(['compact', 'cozy', 'roomy'] as const).map((d) => (
+            <button
+              key={d}
+              type="button"
+              className={settings.density === d ? 'on' : ''}
+              onClick={() => update({ density: d })}
+            >
+              {d}
+            </button>
+          ))}
+        </div>
+      </div>
+      <div className="panel-row">
+        <span>Motion</span>
+        <button
+          type="button"
+          className={`toggle ${settings.motion ? 'on' : ''}`}
+          onClick={() => update({ motion: !settings.motion })}
+        >
+          {settings.motion ? 'On' : 'Off'}
+        </button>
       </div>
     </div>
   );

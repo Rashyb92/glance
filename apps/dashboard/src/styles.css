@@ -582,3 +582,39 @@ body {
 .connect-state.on {
   color: var(--teal);
 }
+
+/* ---- Tuning ---- */
+.tune {
+  display: flex;
+  flex-direction: column;
+  gap: 15px;
+}
+.tune-row {
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+  font-size: 12.5px;
+  color: var(--ink-soft);
+}
+.tune-row b {
+  color: var(--ink);
+  font-variant-numeric: tabular-nums;
+}
+.tune-row input[type='range'] {
+  width: 100%;
+  accent-color: var(--indigo);
+  cursor: pointer;
+}
+.tune-input {
+  border: 1px solid var(--line-strong);
+  border-radius: 9px;
+  padding: 8px 10px;
+  background: rgba(0, 0, 0, 0.22);
+  color: var(--ink);
+  font: inherit;
+  font-size: 13px;
+  outline: none;
+}
+.tune-input::placeholder {
+  color: var(--muted);
+}

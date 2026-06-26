@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import type {
   ChannelEvent,
   ChatSummary,
+  EngineSettings,
   ScoredMessage,
   ServerMessage,
   SessionState,
@@ -20,6 +21,7 @@ export interface FeedState {
   events: FeedEvent[];
   summary: ChatSummary | null;
   session: SessionState | null;
+  settings: EngineSettings | null;
 }
 
 const WS_PORT = (import.meta.env['VITE_GLANCE_WS'] as string | undefined) ?? '8787';
@@ -38,6 +40,7 @@ export function useGlanceFeed(): FeedState {
   const [events, setEvents] = useState<FeedEvent[]>([]);
   const [summary, setSummary] = useState<ChatSummary | null>(null);
   const [session, setSession] = useState<SessionState | null>(null);
+  const [settings, setSettings] = useState<EngineSettings | null>(null);
   const wsRef = useRef<WebSocket | null>(null);
 
   useEffect(() => {
@@ -75,6 +78,9 @@ export function useGlanceFeed(): FeedState {
           case 'session':
             setSession(msg.data);
             break;
+          case 'settings':
+            setSettings(msg.data);
+            break;
           default:
             break;
         }
@@ -89,5 +95,5 @@ export function useGlanceFeed(): FeedState {
     };
   }, []);
 
-  return { status, messages, events, summary, session };
+  return { status, messages, events, summary, session, settings };
 }

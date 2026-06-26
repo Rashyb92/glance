@@ -12,10 +12,12 @@ export interface EngineOptions {
 }
 
 /**
- * The pipeline. Every incoming message is scored (trend-aware) and emitted; every
- * channel event is emitted as inherently high-salience; on a timer, the recent
- * window is handed to the AI provider for a calm summary. This is the only place
- * that orchestrates the three packages.
+ * The pipeline. Every incoming message is scored (trend- and keyword-aware) and
+ * emitted; every channel event is emitted as inherently high-salience; on a timer
+ * the recent window is handed to the AI provider for a calm summary.
+ *
+ * Keywords and the summary interval are live-tunable (see M2 settings) without
+ * tearing down the session.
  */
 export class GlanceEngine {
   private readonly trends = new TrendTracker();
@@ -23,11 +25,16 @@ export class GlanceEngine {
   private readonly maxRecent = 120;
   private summaryTimer: NodeJS.Timeout | null = null;
   private summarizing = false;
+  private keywords: string[];
+  private summaryIntervalMs: number;
 
-  constructor(private readonly opts: EngineOptions) {}
+  constructor(private readonly opts: EngineOptions) {
+    this.keywords = opts.keywords ?? [];
+    this.summaryIntervalMs = opts.summaryIntervalMs;
+  }
 
   start(): void {
-    this.summaryTimer = setInterval(() => void this.emitSummary(), this.opts.summaryIntervalMs);
+    this.summaryTimer = setInterval(() => void this.emitSummary(), this.summaryIntervalMs);
   }
 
   stop(): void {
@@ -35,11 +42,23 @@ export class GlanceEngine {
     this.summaryTimer = null;
   }
 
+  setKeywords(keywords: string[]): void {
+    this.keywords = keywords;
+  }
+
+  setSummaryInterval(ms: number): void {
+    this.summaryIntervalMs = ms;
+    if (this.summaryTimer) {
+      clearInterval(this.summaryTimer);
+      this.summaryTimer = setInterval(() => void this.emitSummary(), ms);
+    }
+  }
+
   ingestMessage(message: ChatMessage): void {
     const trendCount = this.trends.record(message.text, message.timestamp);
     const scored = scoreMessage(message, {
       broadcaster: this.opts.broadcaster,
-      keywords: this.opts.keywords,
+      keywords: this.keywords,
       trendCount,
     });
     this.recent.push(scored);
@@ -52,7 +71,6 @@ export class GlanceEngine {
     this.opts.onItem({ type: 'event', data: event, score });
   }
 
-  /** Recent scored messages — used to seed newly connected HUD clients. */
   snapshot(limit = 40): ScoredMessage[] {
     return this.recent.slice(-limit);
   }

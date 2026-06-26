@@ -1,6 +1,6 @@
 import { createServer, type IncomingMessage, type ServerResponse } from 'node:http';
 import { WebSocketServer, WebSocket } from 'ws';
-import type { ScoredMessage, ServerMessage, SessionState } from '@glance/core';
+import type { EngineSettings, ScoredMessage, ServerMessage, SessionState } from '@glance/core';
 
 /** The control surface the gateway exposes over HTTP + seeds new WS clients with. */
 export interface GatewayControl {
@@ -8,6 +8,8 @@ export interface GatewayControl {
   getSession: () => SessionState;
   connect: (channel: string, demo: boolean) => SessionState;
   disconnect: () => SessionState;
+  getSettings: () => EngineSettings;
+  updateSettings: (patch: unknown) => EngineSettings;
 }
 
 export interface Gateway {
@@ -34,6 +36,7 @@ export function startGateway(port: number, control: GatewayControl): Gateway {
   wss.on('connection', (socket) => {
     socket.send(JSON.stringify({ type: 'hello', data: { ts: Date.now() } }));
     socket.send(JSON.stringify({ type: 'session', data: control.getSession() }));
+    socket.send(JSON.stringify({ type: 'settings', data: control.getSettings() }));
     for (const scored of control.getSnapshot()) {
       socket.send(JSON.stringify({ type: 'message', data: scored }));
     }
@@ -89,6 +92,18 @@ function handleHttp(req: IncomingMessage, res: ServerResponse, control: GatewayC
           const demo = body['demo'] !== false;
           send(200, control.connect(channel, demo));
         })
+        .catch(() => send(400, { error: 'bad request' }));
+      return;
+    }
+  }
+  if (url === '/api/settings') {
+    if (req.method === 'GET') {
+      send(200, control.getSettings());
+      return;
+    }
+    if (req.method === 'POST' || req.method === 'PUT') {
+      readJson(req)
+        .then((body) => send(200, control.updateSettings(body)))
         .catch(() => send(400, { error: 'bad request' }));
       return;
     }

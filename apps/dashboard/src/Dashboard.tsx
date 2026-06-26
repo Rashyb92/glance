@@ -1,7 +1,13 @@
-import { useEffect, useState, type ReactNode } from 'react';
-import type { AudienceMood, MomentItem, SalienceCategory, SessionState } from '@glance/core';
+import { useEffect, useRef, useState, type ReactNode } from 'react';
+import type {
+  AudienceMood,
+  EngineSettings,
+  MomentItem,
+  SalienceCategory,
+  SessionState,
+} from '@glance/core';
 import { useStats, type ConnectionStatus } from './useStats';
-import { connectSession, disconnectSession } from './api';
+import { connectSession, disconnectSession, updateSettings } from './api';
 
 type Tone = 'gold' | 'blue' | 'indigo' | 'teal' | 'soft' | 'muted' | 'red';
 
@@ -30,7 +36,7 @@ const CATEGORY_TONE: Record<SalienceCategory, Tone> = {
 };
 
 export function Dashboard(): JSX.Element {
-  const { status, stats, summary, ticker, session } = useStats();
+  const { status, stats, summary, ticker, session, settings } = useStats();
   const channel = session?.channel ?? stats?.channel ?? 'glance';
 
   return (
@@ -121,6 +127,8 @@ export function Dashboard(): JSX.Element {
               )}
             </div>
           </Card>
+
+          <TuningCard settings={settings} />
 
           <Card title="Session Replay · Best Moments" wide>
             <div className="moments">
@@ -238,6 +246,94 @@ function ConnectBar({ session }: { session: SessionState | null }): JSX.Element 
           : 'not connected'}
       </span>
     </div>
+  );
+}
+
+function TuningCard({ settings }: { settings: EngineSettings | null }): JSX.Element {
+  const [threshold, setThreshold] = useState(0.5);
+  const [intervalSec, setIntervalSec] = useState(15);
+  const [keywords, setKeywords] = useState('');
+  const debounce = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const kwFocused = useRef(false);
+
+  useEffect(() => {
+    if (!settings) return;
+    setThreshold(settings.surfaceThreshold);
+    setIntervalSec(Math.round(settings.summaryIntervalMs / 1000));
+    if (!kwFocused.current) setKeywords(settings.keywords.join(', '));
+  }, [settings]);
+
+  const push = (patch: Partial<EngineSettings>): void => {
+    if (debounce.current) clearTimeout(debounce.current);
+    debounce.current = setTimeout(() => void updateSettings(patch), 250);
+  };
+  const commitKeywords = (): void => {
+    const list = keywords
+      .split(',')
+      .map((s) => s.trim())
+      .filter(Boolean);
+    void updateSettings({ keywords: list });
+  };
+
+  return (
+    <Card title="Tuning">
+      <div className="tune">
+        <label className="tune-row">
+          <span>
+            Surface threshold <b>{threshold.toFixed(2)}</b>
+          </span>
+          <input
+            type="range"
+            min={0}
+            max={1}
+            step={0.05}
+            value={threshold}
+            onChange={(e) => {
+              const v = Number(e.target.value);
+              setThreshold(v);
+              push({ surfaceThreshold: v });
+            }}
+          />
+        </label>
+        <label className="tune-row">
+          <span>
+            AI summary every <b>{intervalSec}s</b>
+          </span>
+          <input
+            type="range"
+            min={4}
+            max={60}
+            step={1}
+            value={intervalSec}
+            onChange={(e) => {
+              const v = Number(e.target.value);
+              setIntervalSec(v);
+              push({ summaryIntervalMs: v * 1000 });
+            }}
+          />
+        </label>
+        <label className="tune-row">
+          <span>Keywords to boost</span>
+          <input
+            className="tune-input"
+            type="text"
+            value={keywords}
+            placeholder="food, tomorrow, giveaway"
+            onFocus={() => {
+              kwFocused.current = true;
+            }}
+            onChange={(e) => setKeywords(e.target.value)}
+            onBlur={() => {
+              kwFocused.current = false;
+              commitKeywords();
+            }}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter') commitKeywords();
+            }}
+          />
+        </label>
+      </div>
+    </Card>
   );
 }
 

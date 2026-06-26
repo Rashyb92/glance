@@ -1,7 +1,8 @@
-import { StatsAggregator } from '@glance/core';
+import { DEFAULT_ENGINE_SETTINGS, StatsAggregator } from '@glance/core';
 import type {
   ChannelEvent,
   ChatMessage,
+  EngineSettings,
   ScoredMessage,
   ServerMessage,
   SessionState,
@@ -13,7 +14,6 @@ import { GlanceEngine } from './engine';
 
 export interface SessionDeps {
   ai: AIProvider;
-  summaryIntervalMs: number;
   log: (message: string) => void;
 }
 
@@ -36,6 +36,7 @@ export class SessionController {
     since: null,
   };
   private broadcast: (message: ServerMessage) => void = () => {};
+  private settings: EngineSettings = DEFAULT_ENGINE_SETTINGS;
 
   constructor(private readonly deps: SessionDeps) {}
 
@@ -43,6 +44,14 @@ export class SessionController {
    *  controller <-> gateway construction cycle without a mutable module var). */
   setBroadcast(fn: (message: ServerMessage) => void): void {
     this.broadcast = fn;
+  }
+
+  /** Apply engine settings live, and remember them for the next connect(). */
+  applySettings(settings: EngineSettings): void {
+    this.settings = settings;
+    this.engine?.setKeywords(settings.keywords);
+    this.engine?.setSummaryInterval(settings.summaryIntervalMs);
+    this.stats?.setThreshold(settings.surfaceThreshold);
   }
 
   getState(): SessionState {
@@ -59,11 +68,13 @@ export class SessionController {
     const label = ch || 'demo';
 
     this.stats = new StatsAggregator(label);
+    this.stats.setThreshold(this.settings.surfaceThreshold);
     this.engine = new GlanceEngine({
       channel: label,
       broadcaster: ch || undefined,
       ai: this.deps.ai,
-      summaryIntervalMs: this.deps.summaryIntervalMs,
+      keywords: this.settings.keywords,
+      summaryIntervalMs: this.settings.summaryIntervalMs,
       onItem: (item) => {
         if (item.type === 'message') this.stats?.ingestMessage(item.data);
         else if (item.type === 'event') this.stats?.ingestEvent(item.data);

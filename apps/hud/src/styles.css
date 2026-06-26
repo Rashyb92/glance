@@ -466,3 +466,125 @@ body {
     bottom: 16px;
   }
 }
+
+/* ---- Overlay customization (device-local) ---- */
+.hud.place-right {
+  right: 32px;
+  left: auto;
+  transform-origin: top right;
+}
+.hud.place-left {
+  left: 32px;
+  right: auto;
+  transform-origin: top left;
+}
+.dens-compact .feed {
+  gap: 7px;
+}
+.dens-roomy .feed {
+  gap: 13px;
+}
+.no-motion,
+.no-motion * {
+  animation: none !important;
+  transition: none !important;
+}
+
+.gear {
+  border: 0;
+  background: transparent;
+  color: var(--muted);
+  cursor: pointer;
+  font-size: 14px;
+  line-height: 1;
+  padding: 2px 5px;
+  border-radius: 6px;
+}
+.gear:hover {
+  color: var(--ink-soft);
+}
+
+.panel {
+  border: 1px solid var(--line-strong);
+  background: var(--panel-solid);
+  backdrop-filter: blur(20px) saturate(120%);
+  -webkit-backdrop-filter: blur(20px) saturate(120%);
+  border-radius: 14px;
+  padding: 13px 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  box-shadow: var(--shadow);
+  animation: rise 0.24s ease both;
+}
+.panel-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-size: 10.5px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+.panel-x {
+  border: 0;
+  background: transparent;
+  color: var(--muted);
+  font-size: 17px;
+  line-height: 1;
+  cursor: pointer;
+}
+.panel-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  font-size: 12.5px;
+  color: var(--ink-soft);
+}
+.panel-row.col {
+  flex-direction: column;
+  align-items: stretch;
+  gap: 6px;
+}
+.panel-row input[type='range'] {
+  width: 100%;
+  accent-color: var(--indigo);
+  cursor: pointer;
+}
+.seg {
+  display: inline-flex;
+  gap: 4px;
+  padding: 3px;
+  background: rgba(255, 255, 255, 0.05);
+  border-radius: 999px;
+}
+.seg button {
+  border: 0;
+  background: transparent;
+  color: var(--muted);
+  font: inherit;
+  font-size: 11.5px;
+  text-transform: capitalize;
+  padding: 4px 11px;
+  border-radius: 999px;
+  cursor: pointer;
+}
+.seg button.on {
+  color: #0a0c12;
+  background: linear-gradient(180deg, #b9b7ff, #8f8cff);
+}
+.toggle {
+  border: 1px solid var(--line-strong);
+  background: transparent;
+  color: var(--muted);
+  font: inherit;
+  font-size: 12px;
+  padding: 4px 13px;
+  border-radius: 999px;
+  cursor: pointer;
+}
+.toggle.on {
+  color: var(--teal);
+  border-color: rgba(79, 224, 207, 0.4);
+}
