@@ -1,5 +1,5 @@
 import { randomUUID } from 'node:crypto';
-import { DEFAULT_ENGINE_SETTINGS, SessionRecorder, StatsAggregator } from '@glance/core';
+import { DEFAULT_ENGINE_SETTINGS, PaceGate, SessionRecorder, StatsAggregator } from '@glance/core';
 import type {
   ChannelEvent,
   ChatMessage,
@@ -43,6 +43,7 @@ export class SessionController {
   private engine: GlanceEngine | null = null;
   private stats: StatsAggregator | null = null;
   private recorder: SessionRecorder | null = null;
+  private pace = new PaceGate();
   private adapters: PlatformAdapter[] = [];
   private statsTimer: NodeJS.Timeout | null = null;
   private priorityTimer: NodeJS.Timeout | null = null;
@@ -77,6 +78,7 @@ export class SessionController {
     this.engine?.setSummariesEnabled(settings.aiSummaries);
     this.engine?.setModeration(settings.moderation, settings.moderationSensitivity);
     this.stats?.setThreshold(settings.surfaceThreshold);
+    this.pace.setPace(settings.pace);
   }
 
   getState(): SessionState {
@@ -112,6 +114,7 @@ export class SessionController {
     );
     this.stats = new StatsAggregator(label);
     this.stats.setThreshold(this.settings.surfaceThreshold);
+    this.pace = new PaceGate(this.settings.pace);
     this.engine = new GlanceEngine({
       channel: label,
       broadcaster: ch || undefined,
@@ -123,6 +126,8 @@ export class SessionController {
         if (item.type === 'message') {
           this.stats?.ingestMessage(item.data);
           this.recorder?.recordMessage(item.data);
+          // Pace throttles only the live feed — stats + recorder above always see it.
+          if (!this.pace.allow(item.data.score, Date.now())) return;
         } else if (item.type === 'event') {
           this.stats?.ingestEvent(item.data);
           this.recorder?.recordEvent(item.data);

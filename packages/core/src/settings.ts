@@ -1,4 +1,5 @@
 import type { SalienceCategory } from './types';
+import { isChatPace, type ChatPace } from './pace';
 
 /**
  * @glance/core — engine settings.
@@ -29,6 +30,8 @@ export const DEFAULT_BRANDING: Branding = { name: '', accentColor: DEFAULT_ACCEN
 export interface EngineSettings {
   /** Salience cut-off for Hybrid surfacing and "high-salience" stats. 0..1. */
   surfaceThreshold: number;
+  /** Live-feed pace: real-time vs a calmer messages-per-minute cap (importance-independent). */
+  pace: ChatPace;
   /** Streamer-specific terms that boost a message's salience. Lowercased, deduped. */
   keywords: string[];
   /** How often the AI produces a summary, in milliseconds. */
@@ -84,6 +87,7 @@ export const ENGINE_SETTINGS_BOUNDS = {
 
 export const DEFAULT_ENGINE_SETTINGS: EngineSettings = {
   surfaceThreshold: 0.5,
+  pace: 'live',
   keywords: [],
   summaryIntervalMs: 15_000,
   routing: cloneRouting(DEFAULT_ROUTING),
@@ -101,6 +105,7 @@ export function normalizeEngineSettings(input: unknown): EngineSettings {
   const obj = input && typeof input === 'object' ? (input as Record<string, unknown>) : {};
   return {
     surfaceThreshold: round2(clamp(numberOr(obj['surfaceThreshold'], 0.5), 0, 1)),
+    pace: isChatPace(obj['pace']) ? obj['pace'] : 'live',
     keywords: sanitizeKeywords(obj['keywords']),
     summaryIntervalMs: Math.round(
       clamp(

@@ -49,6 +49,22 @@ describe('plans / entitlements', () => {
     expect(PLANS.creator.limits.aiCallsPerDay).toBeLessThan(PLANS.pro.limits.aiCallsPerDay);
   });
 
+  it('gates pace control to paid tiers (Free is real-time only)', () => {
+    expect(PLANS.free.limits.paceControl).toBe(false);
+    expect(PLANS.creator.limits.paceControl).toBe(true);
+    expect(PLANS.pro.limits.paceControl).toBe(true);
+    const calm = { ...DEFAULT_ENGINE_SETTINGS, pace: 'calm' as const };
+    expect(applyPlanLimits(calm, 'free').pace).toBe('live'); // clamped to real-time
+    expect(applyPlanLimits(calm, 'creator').pace).toBe('calm'); // allowed
+    expect(applyPlanLimits(calm, 'pro').pace).toBe('calm');
+  });
+
+  it('reserves priority support for the top tier', () => {
+    expect(PLANS.free.limits.prioritySupport).toBe(false);
+    expect(PLANS.creator.limits.prioritySupport).toBe(false);
+    expect(PLANS.pro.limits.prioritySupport).toBe(true);
+  });
+
   it('resets branding on plans without branded overlays', () => {
     const s = {
       ...DEFAULT_ENGINE_SETTINGS,

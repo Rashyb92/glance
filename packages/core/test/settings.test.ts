@@ -63,6 +63,13 @@ describe('normalizeEngineSettings', () => {
     expect(normalizeEngineSettings({ storeMessageText: false }).storeMessageText).toBe(false);
   });
 
+  it('defaults and validates the chat pace', () => {
+    expect(normalizeEngineSettings({}).pace).toBe('live');
+    expect(normalizeEngineSettings({ pace: 'calm' }).pace).toBe('calm');
+    expect(normalizeEngineSettings({ pace: 'balanced' }).pace).toBe('balanced');
+    expect(normalizeEngineSettings({ pace: 'turbo' }).pace).toBe('live'); // invalid → default
+  });
+
   it('sanitizes branding (color, https-only logo, name length)', () => {
     expect(normalizeEngineSettings({}).branding).toEqual(DEFAULT_ENGINE_SETTINGS.branding);
     const s = normalizeEngineSettings({

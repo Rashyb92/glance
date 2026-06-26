@@ -27,6 +27,8 @@ export interface PlanLimits {
   audioRouting: boolean;
   /** Link more than one streaming platform at once. */
   multiPlatform: boolean;
+  /** Choose a calmer chat pace (Balanced / Calm); Free is real-time only. */
+  paceControl: boolean;
   // --- top-tier ("Elite") features ---
   /** Automated moderation actions (timeout/delete), not just flagging. */
   moderationActions: boolean;
@@ -37,6 +39,8 @@ export interface PlanLimits {
   /** Team seats, roles and shared access. */
   teamManagement: boolean;
   seats: number;
+  /** Priority human support — faster response SLAs (top tier). */
+  prioritySupport: boolean;
 }
 
 export interface Plan {
@@ -58,11 +62,13 @@ export const PLANS: Record<PlanId, Plan> = {
       aiPriorities: false,
       audioRouting: false,
       multiPlatform: false,
+      paceControl: false,
       moderationActions: false,
       advancedAnalytics: false,
       brandedOverlays: false,
       teamManagement: false,
       seats: 1,
+      prioritySupport: false,
     },
   },
   creator: {
@@ -76,11 +82,13 @@ export const PLANS: Record<PlanId, Plan> = {
       aiPriorities: true,
       audioRouting: true,
       multiPlatform: true,
+      paceControl: true,
       moderationActions: false,
       advancedAnalytics: false,
       brandedOverlays: false,
       teamManagement: false,
       seats: 1,
+      prioritySupport: false,
     },
   },
   pro: {
@@ -94,11 +102,13 @@ export const PLANS: Record<PlanId, Plan> = {
       aiPriorities: true,
       audioRouting: true,
       multiPlatform: true,
+      paceControl: true,
       moderationActions: true,
       advancedAnalytics: true,
       brandedOverlays: true,
       teamManagement: true,
       seats: 5,
+      prioritySupport: true,
     },
   },
 };
@@ -129,6 +139,7 @@ export function applyPlanLimits(settings: EngineSettings, planId: PlanId): Engin
   return {
     ...settings,
     retentionDays,
+    pace: limits.paceControl ? settings.pace : 'live',
     aiSummaries: settings.aiSummaries && hasAiBudget,
     aiPriorities: settings.aiPriorities && limits.aiPriorities && hasAiBudget,
     routing: limits.audioRouting ? settings.routing : stripAudio(settings.routing),

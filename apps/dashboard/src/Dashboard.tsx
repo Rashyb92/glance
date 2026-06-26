@@ -2,6 +2,7 @@ import { useEffect, useRef, useState, type ReactNode } from 'react';
 import type {
   AudienceMood,
   Branding,
+  ChatPace,
   EngineSettings,
   MomentItem,
   OutputChannel,
@@ -339,6 +340,7 @@ function ConnectBar({ session }: { session: SessionState | null }): JSX.Element 
 
 function TuningCard({ settings }: { settings: EngineSettings | null }): JSX.Element {
   const [threshold, setThreshold] = useState(0.5);
+  const [pace, setPace] = useState<ChatPace>('live');
   const [intervalSec, setIntervalSec] = useState(15);
   const [keywords, setKeywords] = useState('');
   const [routing, setRouting] = useState<RoutingMatrix>({});
@@ -359,6 +361,7 @@ function TuningCard({ settings }: { settings: EngineSettings | null }): JSX.Elem
   useEffect(() => {
     if (!settings) return;
     setThreshold(settings.surfaceThreshold);
+    setPace(settings.pace);
     setIntervalSec(Math.round(settings.summaryIntervalMs / 1000));
     setRouting(settings.routing);
     setAiSummaries(settings.aiSummaries);
@@ -421,6 +424,37 @@ function TuningCard({ settings }: { settings: EngineSettings | null }): JSX.Elem
             }}
           />
         </label>
+        <div className="tune-row">
+          <span>Chat pace</span>
+          <div style={{ display: 'flex', gap: 6 }}>
+            {(['live', 'balanced', 'calm'] as const).map((p) => (
+              <button
+                key={p}
+                type="button"
+                onClick={() => {
+                  setPace(p);
+                  push({ pace: p });
+                }}
+                style={{
+                  flex: 1,
+                  padding: '6px 10px',
+                  borderRadius: 8,
+                  border: `1px solid ${pace === p ? '#7c5cff' : '#33333d'}`,
+                  background: pace === p ? '#7c5cff22' : 'transparent',
+                  color: '#e8e8f0',
+                  fontSize: 13,
+                  cursor: 'pointer',
+                  textTransform: 'capitalize',
+                }}
+              >
+                {p}
+              </button>
+            ))}
+          </div>
+        </div>
+        <p style={{ margin: '-4px 0 4px', fontSize: 11, opacity: 0.55 }}>
+          Live = real-time · Balanced ≈ 20/min · Calm ≈ 8/min. Donations and big moments always show.
+        </p>
         <label className="tune-row">
           <span>
             AI summary every <b>{intervalSec}s</b>
