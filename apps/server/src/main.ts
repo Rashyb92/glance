@@ -10,6 +10,9 @@ import { FileStorage } from './storage';
 import { OAuthService } from './integrations/oauth-service';
 import { TokenStore } from './integrations/oauth-token-store';
 import type { ProviderId } from './integrations/oauth-providers';
+import { BillingService } from './integrations/billing';
+import { EntitlementStore } from './integrations/entitlement-store';
+import type { IntegrationDeps } from './integrations/routes';
 import { TeamStore } from './team-store';
 import { PushStore } from './push-store';
 import { DefaultPushProvider, Notifier } from './push';
@@ -36,6 +39,23 @@ const tokens = new TokenStore(resolve(repoRoot, '.data', 'tokens'));
 const oauth = new OAuthService(
   process.env['GLANCE_PUBLIC_URL'] ?? `http://localhost:${config.wsPort}`,
 );
+
+const dashboardUrl = process.env['GLANCE_DASHBOARD_URL'] ?? 'http://localhost:5174';
+const entitlements = new EntitlementStore(resolve(repoRoot, '.data', 'entitlements'));
+const billing = new BillingService(
+  process.env['STRIPE_SECRET_KEY'],
+  `${dashboardUrl}?billing=success`,
+  `${dashboardUrl}?billing=cancel`,
+);
+// OAuth + billing routes mounted on the gateway. Each fails soft until its keys exist.
+const integrations: IntegrationDeps = {
+  oauth,
+  tokens,
+  billing,
+  entitlements,
+  webhookSecret: process.env['STRIPE_WEBHOOK_SECRET'],
+  dashboardUrl,
+};
 
 /** Reads (and refreshes near expiry) a tenant's stored token for a provider. */
 function tokenAccessor(provider: ProviderId) {
@@ -84,9 +104,11 @@ const hub = new Hub({
   youtubeLink,
   team,
   push,
+  // Enforce real plans only when billing is configured; dev/self-host stays ungated.
+  entitlements: process.env['STRIPE_SECRET_KEY'] ? entitlements : undefined,
 });
 
-const gateway = startGateway(config.wsPort, hub, bus);
+const gateway = startGateway(config.wsPort, hub, bus, integrations);
 
 // Auto-connect the default tenant so a local `pnpm dev` lights up immediately.
 hub.connect('default', config.channel, config.demo);

@@ -1,10 +1,10 @@
-# Integrations: OAuth & Billing — ready to link
+# Integrations: OAuth & Billing — mounted, ready for keys
 
-The OAuth and billing **pipelines are built and unit-tested** as self-contained
-modules under `apps/server/src/integrations/`. They are intentionally **not yet
-mounted** on the HTTP gateway — mounting + live testing needs real credentials and
-is the step we do together (you said: "when I'm back we will run the relevant
-tests"). This guide is everything needed to go live.
+The OAuth and billing **pipelines are built, unit-tested, and now mounted on the
+gateway** (`apps/server/src/integrations/`, delegated from `gateway.ts` via
+`handleIntegrationRoutes`). Every route **fails soft** with a clear error until its
+keys are configured, so the platform runs today and goes live the moment you add
+credentials. This guide is the env + flow; the route paths below are live.
 
 Nothing here adds an npm dependency: token exchange and Stripe calls use the native
 `fetch`; all crypto uses `node:crypto`. Official SDKs can be swapped in later behind

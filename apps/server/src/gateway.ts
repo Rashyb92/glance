@@ -12,6 +12,7 @@ import type {
 } from '@glance/core';
 import type { Bus } from './bus';
 import type { PushSubscription } from './push-store';
+import { handleIntegrationRoutes, type IntegrationDeps } from './integrations/routes';
 import { resolveTenant } from './auth';
 import { RateLimiter } from './ratelimit';
 import { logger } from './logger';
@@ -86,11 +87,16 @@ type TrackedSocket = WebSocket & { isAlive?: boolean; tenant?: string };
  * per-frame payload cap, connection cap, ping/pong heartbeat (drops zombie sockets),
  * and per-client backpressure (skips slow consumers instead of buffering unboundedly).
  */
-export function startGateway(port: number, control: GatewayControl, bus: Bus): Gateway {
+export function startGateway(
+  port: number,
+  control: GatewayControl,
+  bus: Bus,
+  integrations?: IntegrationDeps,
+): Gateway {
   // Per-IP token buckets: cheap protection against floods / accidental loops.
   const httpLimiter = new RateLimiter(intEnv('GLANCE_HTTP_BURST', 60), intEnv('GLANCE_HTTP_RPS', 20));
   const connLimiter = new RateLimiter(intEnv('GLANCE_CONN_BURST', 20), intEnv('GLANCE_CONN_RPS', 5));
-  const server = createServer((req, res) => handleHttp(req, res, control, httpLimiter));
+  const server = createServer((req, res) => handleHttp(req, res, control, httpLimiter, integrations));
 
   const wss = new WebSocketServer({
     server,
@@ -220,6 +226,7 @@ function handleHttp(
   res: ServerResponse,
   control: GatewayControl,
   limiter: RateLimiter,
+  integrations?: IntegrationDeps,
 ): void {
   const cors = corsHeaders(req.headers.origin);
   const send = (code: number, body?: unknown): void => {
@@ -254,6 +261,12 @@ function handleHttp(
   if (!limiter.allow(clientIp(req))) {
     metrics.inc('glance_http_ratelimited_total');
     send(429, { error: 'rate_limited' });
+    return;
+  }
+
+  // OAuth / billing routes — some are token-less (OAuth callback + Stripe webhook),
+  // so they're handled before the tenant gate below.
+  if (integrations && handleIntegrationRoutes(req, res, url, cors, integrations)) {
     return;
   }
 
