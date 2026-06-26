@@ -11,7 +11,14 @@ import type {
   SessionState,
 } from '@glance/core';
 import { useStats, type ConnectionStatus } from './useStats';
-import { connectSession, disconnectSession, updateSettings } from './api';
+import {
+  connectSession,
+  disconnectSession,
+  oauthStartUrl,
+  openBillingPortal,
+  startCheckout,
+  updateSettings,
+} from './api';
 import { ReplayView } from './ReplayView';
 import { AnalyticsView } from './AnalyticsView';
 
@@ -174,6 +181,8 @@ export function Dashboard(): JSX.Element {
           </Card>
 
           <TuningCard settings={settings} />
+
+          <AccountCard />
 
           <Card title="Session Replay · Best Moments" wide>
             <div className="moments">
@@ -595,6 +604,70 @@ function TuningCard({ settings }: { settings: EngineSettings | null }): JSX.Elem
             onChange={(e) => updateBranding({ logoUrl: e.target.value })}
           />
         </label>
+      </div>
+    </Card>
+  );
+}
+
+function AccountCard(): JSX.Element {
+  const [busy, setBusy] = useState(false);
+  const go = async (fn: () => Promise<string | null>): Promise<void> => {
+    setBusy(true);
+    try {
+      const url = await fn();
+      if (url) window.location.href = url;
+      else setBusy(false);
+    } catch {
+      setBusy(false);
+    }
+  };
+  const link = (provider: 'twitch' | 'youtube' | 'kick'): void => {
+    window.location.href = oauthStartUrl(provider);
+  };
+  return (
+    <Card title="Account & plan">
+      <div className="list-label">Link your channel</div>
+      <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginTop: 6 }}>
+        <button type="button" className="connect-btn ghost" onClick={() => link('twitch')}>
+          Twitch
+        </button>
+        <button type="button" className="connect-btn ghost" onClick={() => link('youtube')}>
+          YouTube
+        </button>
+        <button type="button" className="connect-btn ghost" onClick={() => link('kick')}>
+          Kick
+        </button>
+      </div>
+      <p className="hint-sm">Linking enables live chat reading instead of anonymous mode.</p>
+
+      <div className="list-label" style={{ marginTop: 12 }}>
+        Plan
+      </div>
+      <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginTop: 6 }}>
+        <button
+          type="button"
+          className="connect-btn"
+          disabled={busy}
+          onClick={() => void go(() => startCheckout('creator'))}
+        >
+          Upgrade · Creator
+        </button>
+        <button
+          type="button"
+          className="connect-btn"
+          disabled={busy}
+          onClick={() => void go(() => startCheckout('pro'))}
+        >
+          Pro
+        </button>
+        <button
+          type="button"
+          className="connect-btn ghost"
+          disabled={busy}
+          onClick={() => void go(openBillingPortal)}
+        >
+          Manage
+        </button>
       </div>
     </Card>
   );

@@ -61,3 +61,27 @@ export async function getAnalytics(): Promise<AnalyticsReport | null> {
   const r = await fetch(`${BASE}/api/analytics`, { headers: headers() });
   return r.ok ? ((await r.json()) as AnalyticsReport) : null;
 }
+
+/** URL the browser navigates to in order to link a streaming account (GET redirect flow). */
+export function oauthStartUrl(provider: 'twitch' | 'youtube' | 'kick'): string {
+  const q = TOKEN ? `?token=${encodeURIComponent(TOKEN)}` : '';
+  return `${BASE}/api/oauth/${provider}/start${q}`;
+}
+
+/** Start a subscription checkout; returns the hosted Stripe URL to redirect to (or null). */
+export async function startCheckout(plan: 'creator' | 'pro'): Promise<string | null> {
+  const r = await fetch(`${BASE}/api/billing/checkout`, {
+    method: 'POST',
+    headers: headers({ 'content-type': 'application/json' }),
+    body: JSON.stringify({ plan }),
+  });
+  if (!r.ok) return null;
+  return ((await r.json()) as { url?: string }).url ?? null;
+}
+
+/** Open the Stripe customer portal; returns the URL to redirect to (or null). */
+export async function openBillingPortal(): Promise<string | null> {
+  const r = await fetch(`${BASE}/api/billing/portal`, { method: 'POST', headers: headers() });
+  if (!r.ok) return null;
+  return ((await r.json()) as { url?: string }).url ?? null;
+}
