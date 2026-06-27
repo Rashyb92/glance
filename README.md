@@ -4,8 +4,11 @@
 
 Glance reads a streamer's live chat in real time, decides what actually matters
 (a donation, a raid, a real question, a trend — not the 400 emotes around it), and
-surfaces it as a calm, peripheral overlay. This repo is the **core loop**, running
-end-to-end on your machine:
+surfaces just that — on a glanceable overlay, in an earbud, on a phone companion, or
+on smart glasses. It reads **Twitch, YouTube and Kick** (and can merge several at once
+into one ranked feed), takes voice commands ("Ask Glance"), creates real Twitch clips,
+supports teams, and bills through Stripe. The core loop still runs end-to-end on your
+machine with no keys:
 
 ```
   Twitch IRC ──┐
@@ -155,17 +158,34 @@ Center to browse past streams and replay any one of them end to end.
 ```
 glance/
 ├─ packages/
-│  ├─ core/        @glance/core      Pure salience engine + shared types (no deps, fully tested)
-│  ├─ platforms/   @glance/platforms PlatformAdapter seam + Twitch (anonymous) + Demo adapters
-│  └─ ai/          @glance/ai        AIProvider seam + Claude provider + rule-based fallback
+│  ├─ core/        @glance/core      Salience engine, settings, plans, teams, replay, pace, voice (pure, tested)
+│  ├─ platforms/   @glance/platforms PlatformAdapter seam — Twitch (IRC + EventSub), YouTube, Kick, Demo
+│  └─ ai/          @glance/ai        AIProvider seam — Claude provider + rule-based fallback
 └─ apps/
-   ├─ server/      @glance/server    Wires adapter → engine → AI, broadcasts over WebSocket
-   └─ hud/         @glance/hud       React peripheral overlay (the "glasses" preview)
+   ├─ server/      @glance/server    Hub + WS/REST gateway, OAuth, Stripe, push, Postgres/Redis seams
+   ├─ hud/         @glance/hud       React overlay + earbud/audio mode (the glasses preview)
+   ├─ dashboard/   @glance/dashboard Command Center — connect, tune, replay, analytics, team, billing
+   └─ companion/   @glance/companion Installable phone PWA — audio HUD, voice, background Web Push
 ```
 
-The three packages are independent and swappable by design — see
-[`ARCHITECTURE.md`](./ARCHITECTURE.md) for how Kick/YouTube, other AI models, and
-real glasses slot in without touching the rest of the system.
+The packages are independent and swappable by design — see
+[`ARCHITECTURE.md`](./ARCHITECTURE.md) for how platforms, AI models, and real glasses
+slot in without touching the rest of the system.
+
+---
+
+## Production, deploy & business docs
+
+Glance is launch-ready. Beyond local dev, the repo ships everything needed to run it as a
+business:
+
+- [`docs/DEPLOY.md`](./docs/DEPLOY.md) — deploy the managed-simple stack (Fly + Neon + Upstash + Cloudflare) with the full env-var reference.
+- [`docs/GO_LIVE.md`](./docs/GO_LIVE.md) — sequenced go-live runbook (provision → secrets → deploy → smoke tests → store builds → monitoring/rollback). Also `Glance_Go_Live_Runbook.docx`.
+- [`docs/LAUNCH_AUDIT.md`](./docs/LAUNCH_AUDIT.md) — independent pre-launch security & reliability audit (no criticals) + the fixes applied.
+- [`docs/BUSINESS_PLAN.md`](./docs/BUSINESS_PLAN.md) — business plan, go-to-market and marketing strategy, research-backed. Also `Glance_Business_Plan.docx`.
+- `apps/companion/twa/` and `apps/companion/ios/` — Android (TWA) and iOS (Capacitor) app-store scaffolds.
+
+Every change is gated by `pnpm verify` (typecheck + lint + test + build).
 
 ---
 
