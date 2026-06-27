@@ -51,6 +51,10 @@ export class AiUsageMeter {
  * regardless of which worker serves the tenant.
  */
 export class RedisUsageMeter {
+  /** Per-instance fallback used when Redis is unreachable, so an AI call degrades to
+   *  per-instance limiting rather than failing outright. */
+  private readonly fallback = new AiUsageMeter();
+
   constructor(
     private readonly redis: RedisCounters,
     private readonly prefix = 'glance:ai',
@@ -60,8 +64,13 @@ export class RedisUsageMeter {
     if (cap <= 0) return false;
     const day = now.toISOString().slice(0, 10);
     const key = `${this.prefix}:${tenant}:${day}`;
-    const n = await this.redis.incr(key);
-    if (n === 1) await this.redis.pExpire(key, 36 * 60 * 60 * 1000); // ~1.5 days (TZ-safe)
-    return n <= cap;
+    try {
+      const n = await this.redis.incr(key);
+      if (n === 1) await this.redis.pExpire(key, 36 * 60 * 60 * 1000); // ~1.5 days (TZ-safe)
+      return n <= cap;
+    } catch {
+      // Redis down — fall back to per-instance limiting instead of blocking AI fleet-wide.
+      return this.fallback.tryConsume(tenant, cap, now);
+    }
   }
 }

@@ -15,6 +15,10 @@
     "@glance/platforms": "workspace:*",
     "ws": "^8.18.0"
   },
+  "optionalDependencies": {
+    "pg": "^8.13.1",
+    "redis": "^4.7.0"
+  },
   "devDependencies": {
     "@types/ws": "^8.5.13"
   }
