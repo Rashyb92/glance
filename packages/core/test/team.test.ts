@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { canManage, isTeamRole, roleRank } from '../src/team';
+import { canManage, canManageTeam, isTeamRole, roleRank } from '../src/team';
 
 describe('team roles', () => {
   it('ranks roles owner > admin > member', () => {
@@ -19,5 +19,11 @@ describe('team roles', () => {
     expect(canManage('admin', 'admin')).toBe(false); // no peer management
     expect(canManage('admin', 'owner')).toBe(false);
     expect(canManage('member', 'member')).toBe(false); // members can't manage
+  });
+
+  it('lets only admins and owners manage the team', () => {
+    expect(canManageTeam('owner')).toBe(true);
+    expect(canManageTeam('admin')).toBe(true);
+    expect(canManageTeam('member')).toBe(false);
   });
 });

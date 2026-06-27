@@ -1,12 +1,24 @@
 import { createHmac } from 'node:crypto';
 import { afterEach, describe, expect, it } from 'vitest';
-import { resolveTenant, signToken } from '../src/auth';
+import { resolveActor, resolveTenant, signMemberToken, signToken } from '../src/auth';
 
 const KEY = 'GLANCE_AUTH_SECRET';
 
 /** Craft a validly-signed token with an explicit (possibly past) expiry. */
 function tokenWithExp(tenant: string, secret: string, expEpochSec: number): string {
   const body = `${tenant}.${expEpochSec}`;
+  const sig = createHmac('sha256', secret).update(body).digest('base64url');
+  return `${body}.${sig}`;
+}
+
+function memberTokenWithExp(
+  tenant: string,
+  memberId: string,
+  role: string,
+  secret: string,
+  expEpochSec: number,
+): string {
+  const body = `${tenant}.${memberId}.${role}.${expEpochSec}`;
   const sig = createHmac('sha256', secret).update(body).digest('base64url');
   return `${body}.${sig}`;
 }
@@ -67,5 +79,53 @@ describe('resolveTenant — production (signed tokens)', () => {
     process.env[KEY] = 'top-secret';
     const expired = tokenWithExp('acme', 'top-secret', Math.floor(Date.now() / 1000) - 10);
     expect(resolveTenant(expired)).toBeNull();
+  });
+});
+
+describe('resolveActor — per-member logins', () => {
+  afterEach(() => {
+    delete process.env[KEY];
+  });
+
+  it('resolves tenant tokens (and dev tokens) as owner', () => {
+    delete process.env[KEY];
+    expect(resolveActor('acme')).toEqual({ tenant: 'acme', role: 'owner' });
+    expect(resolveActor(undefined)).toEqual({ tenant: 'default', role: 'owner' });
+    process.env[KEY] = 'top-secret';
+    expect(resolveActor(signToken('acme', 'top-secret'))).toEqual({ tenant: 'acme', role: 'owner' });
+  });
+
+  it('round-trips a signed member token with its id and role', () => {
+    process.env[KEY] = 'top-secret';
+    const token = signMemberToken('acme', 'mem-1', 'admin', 'top-secret');
+    expect(resolveActor(token)).toEqual({ tenant: 'acme', memberId: 'mem-1', role: 'admin' });
+  });
+
+  it('rejects a member token signed with a different secret', () => {
+    process.env[KEY] = 'top-secret';
+    expect(resolveActor(signMemberToken('acme', 'mem-1', 'member', 'wrong-secret'))).toBeNull();
+  });
+
+  it('rejects a privilege-escalation tamper of the role', () => {
+    process.env[KEY] = 'top-secret';
+    const token = signMemberToken('acme', 'mem-1', 'member', 'top-secret');
+    expect(resolveActor(token.replace('.member.', '.owner.'))).toBeNull();
+  });
+
+  it('rejects a validly-signed but unknown role', () => {
+    process.env[KEY] = 'top-secret';
+    expect(resolveActor(memberTokenWithExp('acme', 'm', 'superuser', 'top-secret', 0))).toBeNull();
+  });
+
+  it('rejects an expired member token', () => {
+    process.env[KEY] = 'top-secret';
+    const expired = memberTokenWithExp(
+      'acme',
+      'm',
+      'admin',
+      'top-secret',
+      Math.floor(Date.now() / 1000) - 10,
+    );
+    expect(resolveActor(expired)).toBeNull();
   });
 });

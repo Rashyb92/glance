@@ -10,13 +10,18 @@ import type {
   RoutingMatrix,
   SalienceCategory,
   SessionState,
+  TeamMember,
 } from '@glance/core';
 import { useStats, type ConnectionStatus } from './useStats';
 import {
   connectSessionMany,
   disconnectSession,
+  inviteMember,
+  listTeam,
+  memberLoginToken,
   oauthStartUrl,
   openBillingPortal,
+  removeMember,
   startCheckout,
   updateSettings,
 } from './api';
@@ -184,6 +189,8 @@ export function Dashboard(): JSX.Element {
           <TuningCard settings={settings} />
 
           <AccountCard />
+
+          <TeamCard />
 
           <Card title="Session Replay · Best Moments" wide>
             <div className="moments">
@@ -756,6 +763,123 @@ function AccountCard(): JSX.Element {
           Manage
         </button>
       </div>
+    </Card>
+  );
+}
+
+function TeamCard(): JSX.Element {
+  const [members, setMembers] = useState<TeamMember[] | null>(null);
+  const [loaded, setLoaded] = useState(false);
+  const [email, setEmail] = useState('');
+  const [role, setRole] = useState<'admin' | 'member'>('member');
+  const [note, setNote] = useState('');
+  const [token, setToken] = useState('');
+
+  const refresh = (): void => {
+    void listTeam().then((m) => {
+      setMembers(m);
+      setLoaded(true);
+    });
+  };
+  useEffect(refresh, []);
+
+  // The roster endpoint 403s (→ null) on plans without team management.
+  if (loaded && members === null) {
+    return (
+      <Card title="Team">
+        <p className="hint-sm">Team seats are part of the Pro plan — upgrade to invite teammates.</p>
+      </Card>
+    );
+  }
+
+  const invite = async (): Promise<void> => {
+    setNote('');
+    const res = await inviteMember(email.trim(), role);
+    if ('error' in res) setNote(res.error);
+    else {
+      setEmail('');
+      refresh();
+    }
+  };
+  const makeLogin = async (id: string): Promise<void> => {
+    setToken(
+      (await memberLoginToken(id)) ?? 'Member logins require GLANCE_AUTH_SECRET on the server.',
+    );
+  };
+  const list = members ?? [];
+
+  return (
+    <Card title="Team">
+      {list.length === 0 ? (
+        <p className="hint-sm">No teammates yet — invite someone to share this account.</p>
+      ) : (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+          {list.map((m) => (
+            <div key={m.id} style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 13 }}>
+              <span style={{ flex: 1, overflow: 'hidden', textOverflow: 'ellipsis' }}>{m.email}</span>
+              <span style={{ opacity: 0.6, textTransform: 'capitalize' }}>{m.role}</span>
+              <span style={{ opacity: 0.4 }}>{m.status}</span>
+              <button type="button" className="connect-btn ghost" onClick={() => void makeLogin(m.id)}>
+                Login link
+              </button>
+              <button
+                type="button"
+                aria-label="Remove teammate"
+                onClick={() => void removeMember(m.id).then(refresh)}
+                style={{
+                  background: 'none',
+                  border: 'none',
+                  color: '#9a9aa6',
+                  cursor: 'pointer',
+                  fontSize: 16,
+                }}
+              >
+                ×
+              </button>
+            </div>
+          ))}
+        </div>
+      )}
+
+      <div style={{ display: 'flex', gap: 6, marginTop: 10 }}>
+        <input
+          className="connect-input"
+          style={{ flex: 1 }}
+          value={email}
+          placeholder="teammate@email.com"
+          spellCheck={false}
+          onChange={(e) => setEmail(e.target.value)}
+        />
+        <select
+          className="connect-platform"
+          value={role}
+          aria-label="Role"
+          onChange={(e) => setRole(e.target.value as 'admin' | 'member')}
+        >
+          <option value="member">Member</option>
+          <option value="admin">Admin</option>
+        </select>
+        <button type="button" className="connect-btn" onClick={() => void invite()}>
+          Invite
+        </button>
+      </div>
+      {note && (
+        <p className="hint-sm" style={{ color: '#ff8fab' }}>
+          {note}
+        </p>
+      )}
+      {token && (
+        <div style={{ marginTop: 8 }}>
+          <div className="list-label">Login token — share with the teammate</div>
+          <input
+            className="connect-input"
+            readOnly
+            value={token}
+            onFocus={(e) => e.currentTarget.select()}
+            style={{ width: '100%', marginTop: 4, fontSize: 12 }}
+          />
+        </div>
+      )}
     </Card>
   );
 }

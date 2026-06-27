@@ -11,10 +11,11 @@ import type {
   SessionSummary,
   TeamMember,
 } from '@glance/core';
+import { canManageTeam } from '@glance/core';
 import type { Bus } from './bus';
 import type { PushSubscription } from './push-store';
 import { handleIntegrationRoutes, type IntegrationDeps } from './integrations/routes';
-import { resolveTenant } from './auth';
+import { resolveActor, signMemberToken } from './auth';
 import { RateLimiter } from './ratelimit';
 import { logger } from './logger';
 import { metrics } from './metrics';
@@ -161,12 +162,13 @@ export function startGateway(
       return;
     }
 
-    const tenant = resolveTenant(tokenFromUrl(req.url));
-    if (!tenant) {
+    const actor = resolveActor(tokenFromUrl(req.url));
+    if (!actor) {
       metrics.inc('glance_ws_unauthorized_total');
       socket.close(1008, 'unauthorized');
       return;
     }
+    const tenant = actor.tenant;
 
     socket.tenant = tenant;
     join(tenant, socket);
@@ -274,12 +276,14 @@ function handleHttp(
     return;
   }
 
-  // Everything below is tenant-scoped and requires a resolvable token.
-  const tenant = resolveTenant(tokenFromReq(req));
-  if (!tenant) {
+  // Everything below is tenant-scoped and requires a resolvable token. Member tokens
+  // additionally carry a team role, used to gate team-management actions below.
+  const actor = resolveActor(tokenFromReq(req));
+  if (!actor) {
     send(401, { error: 'unauthorized' });
     return;
   }
+  const tenant = actor.tenant;
 
   if (url === '/api/session') {
     if (req.method === 'GET') return send(200, control.getSession(tenant));
@@ -325,6 +329,7 @@ function handleHttp(
       return send(members ? 200 : 403, members ?? { error: 'team management is not on your plan' });
     }
     if (req.method === 'POST') {
+      if (!canManageTeam(actor.role)) return send(403, { error: 'admins only' });
       readJson(req)
         .then((body) => {
           const result = control.inviteMember(
@@ -341,8 +346,25 @@ function handleHttp(
     }
   }
   if (url.startsWith('/api/team/')) {
-    const id = decodeURIComponent(url.slice('/api/team/'.length));
+    const rest = url.slice('/api/team/'.length);
+    // POST /api/team/:id/login — mint a per-member login token (admins / owners only).
+    if (rest.endsWith('/login') && req.method === 'POST') {
+      if (!canManageTeam(actor.role)) return send(403, { error: 'admins only' });
+      const secret = process.env['GLANCE_AUTH_SECRET'];
+      if (!secret) return send(501, { error: 'member logins require GLANCE_AUTH_SECRET' });
+      const members = control.listTeam(tenant);
+      if (members === null) return send(403, { error: 'team management is not on your plan' });
+      const memberId = decodeURIComponent(rest.slice(0, -'/login'.length));
+      const member = members.find((m) => m.id === memberId);
+      if (!member) return send(404, { error: 'member not found' });
+      return send(200, {
+        token: signMemberToken(tenant, member.id, member.role, secret),
+        role: member.role,
+      });
+    }
     if (req.method === 'DELETE') {
+      if (!canManageTeam(actor.role)) return send(403, { error: 'admins only' });
+      const id = decodeURIComponent(rest);
       const ok = control.removeMember(tenant, id);
       return send(ok === null ? 403 : 200, ok === null ? { error: 'not on your plan' } : { ok });
     }

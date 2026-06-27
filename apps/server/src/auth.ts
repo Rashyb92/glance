@@ -1,4 +1,5 @@
 import { createHmac, timingSafeEqual } from 'node:crypto';
+import { isTeamRole, type TeamRole } from '@glance/core';
 
 /**
  * Tenant resolution from a client token.
@@ -55,4 +56,65 @@ function safeEqual(a: string, b: string): boolean {
   } catch {
     return false;
   }
+}
+
+/**
+ * An authenticated caller: always a tenant, plus a team role and member id when the
+ * token is a per-member login. Legacy tenant tokens (and dev mode) resolve as `owner`.
+ */
+export interface Actor {
+  tenant: string;
+  role: TeamRole;
+  memberId?: string;
+}
+
+/** Issue a signed per-member login token `<tenant>.<memberId>.<role>.<exp>.<sig>`. */
+export function signMemberToken(
+  tenant: string,
+  memberId: string,
+  role: TeamRole,
+  secret: string,
+  opts: TokenOptions = {},
+): string {
+  const exp =
+    opts.ttlSeconds && opts.ttlSeconds > 0
+      ? Math.floor(Date.now() / 1000) + Math.floor(opts.ttlSeconds)
+      : 0;
+  const body = `${tenant}.${memberId}.${role}.${exp}`;
+  const sig = createHmac('sha256', secret).update(body).digest('base64url');
+  return `${body}.${sig}`;
+}
+
+/**
+ * Resolve a client token to an {@link Actor}. Dev (no secret): the token is the tenant
+ * key (or `default`), as owner. Production: accepts either a per-member token or a
+ * legacy tenant token (which resolves as owner).
+ */
+export function resolveActor(token: string | undefined): Actor | null {
+  const secret = process.env['GLANCE_AUTH_SECRET'];
+  if (!secret) {
+    const tenant = (token && token.trim()) || 'default';
+    return { tenant, role: 'owner' };
+  }
+  const member = verifyMemberToken(token, secret);
+  if (member) return member;
+  const tenant = verifyToken(token, secret);
+  return tenant ? { tenant, role: 'owner' } : null;
+}
+
+function verifyMemberToken(token: string | undefined, secret: string): Actor | null {
+  if (!token) return null;
+  const parts = token.split('.');
+  if (parts.length !== 5) return null;
+  const [tenant, memberId, role, expRaw, sig] = parts;
+  if (!tenant || !memberId || !role || expRaw === undefined || !sig) return null;
+  if (!isTeamRole(role)) return null;
+  const expected = createHmac('sha256', secret)
+    .update(`${tenant}.${memberId}.${role}.${expRaw}`)
+    .digest('base64url');
+  if (!safeEqual(sig, expected)) return null;
+  const exp = Number.parseInt(expRaw, 10);
+  if (!Number.isFinite(exp)) return null;
+  if (exp !== 0 && exp < Math.floor(Date.now() / 1000)) return null; // expired
+  return { tenant, memberId, role };
 }

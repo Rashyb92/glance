@@ -33,3 +33,8 @@ export function isTeamRole(value: string): value is TeamRole {
 export function canManage(actor: TeamRole, target: TeamRole): boolean {
   return RANK[actor] >= RANK.admin && RANK[actor] > RANK[target];
 }
+
+/** Can this role manage the team at all (invite, remove, issue member logins)? */
+export function canManageTeam(role: TeamRole): boolean {
+  return RANK[role] >= RANK.admin;
+}

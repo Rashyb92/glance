@@ -1,4 +1,10 @@
-import type { AnalyticsReport, EngineSettings, SessionDetail, SessionSummary } from '@glance/core';
+import type {
+  AnalyticsReport,
+  EngineSettings,
+  SessionDetail,
+  SessionSummary,
+  TeamMember,
+} from '@glance/core';
 
 // Control-plane + replay calls to the Glance server. Live state (session/settings)
 // is echoed back over the WebSocket, so the mutating helpers ignore the body.
@@ -96,4 +102,37 @@ export async function openBillingPortal(): Promise<string | null> {
   const r = await fetch(`${BASE}/api/billing/portal`, { method: 'POST', headers: headers() });
   if (!r.ok) return null;
   return ((await r.json()) as { url?: string }).url ?? null;
+}
+
+/** Team roster. Returns null when the plan doesn't include team management (403). */
+export async function listTeam(): Promise<TeamMember[] | null> {
+  const r = await fetch(`${BASE}/api/team`, { headers: headers() });
+  return r.ok ? ((await r.json()) as TeamMember[]) : null;
+}
+
+/** Invite a teammate by email + role. Returns the new member or an error message. */
+export async function inviteMember(
+  email: string,
+  role: 'admin' | 'member',
+): Promise<TeamMember | { error: string }> {
+  const r = await fetch(`${BASE}/api/team`, {
+    method: 'POST',
+    headers: headers({ 'content-type': 'application/json' }),
+    body: JSON.stringify({ email, role }),
+  });
+  return (await r.json()) as TeamMember | { error: string };
+}
+
+export async function removeMember(id: string): Promise<void> {
+  await fetch(`${BASE}/api/team/${encodeURIComponent(id)}`, { method: 'DELETE', headers: headers() });
+}
+
+/** Mint a per-member login token (admins/owners only). Returns the token, or null. */
+export async function memberLoginToken(id: string): Promise<string | null> {
+  const r = await fetch(`${BASE}/api/team/${encodeURIComponent(id)}/login`, {
+    method: 'POST',
+    headers: headers(),
+  });
+  if (!r.ok) return null;
+  return ((await r.json()) as { token?: string }).token ?? null;
 }
