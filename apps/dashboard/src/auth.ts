@@ -51,6 +51,19 @@ export function hasLoginSession(): boolean {
   }
 }
 
+/** Base URLs of the output surfaces, for generating paired-device links. */
+export const HUD_URL =
+  (import.meta.env['VITE_HUD_URL'] as string | undefined) ?? 'http://localhost:5173';
+export const COMPANION_URL =
+  (import.meta.env['VITE_COMPANION_URL'] as string | undefined) ?? 'http://localhost:5175';
+
+/** A paired-device link carrying the current session token (the device captures + strips it). */
+export function pairLink(base: string): string {
+  const token = getToken();
+  if (!token) return base;
+  return `${base}${base.includes('?') ? '&' : '?'}token=${encodeURIComponent(token)}`;
+}
+
 export type AuthResult = { ok: true } | { ok: false; error: string };
 
 export function login(email: string, password: string): Promise<AuthResult> {

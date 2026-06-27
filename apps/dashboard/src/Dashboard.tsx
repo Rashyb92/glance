@@ -26,6 +26,7 @@ import {
   startCheckout,
   updateSettings,
 } from './api';
+import { pairLink, HUD_URL, COMPANION_URL } from './auth';
 import { ReplayView } from './ReplayView';
 import { AnalyticsView } from './AnalyticsView';
 
@@ -707,6 +708,16 @@ function TuningCard({ settings }: { settings: EngineSettings | null }): JSX.Elem
 
 function AccountCard(): JSX.Element {
   const [busy, setBusy] = useState(false);
+  const [copied, setCopied] = useState(false);
+  const copyPhone = async (): Promise<void> => {
+    try {
+      await navigator.clipboard.writeText(pairLink(COMPANION_URL));
+      setCopied(true);
+      setTimeout(() => setCopied(false), 1500);
+    } catch {
+      /* clipboard unavailable */
+    }
+  };
   const go = async (fn: () => Promise<string | null>): Promise<void> => {
     setBusy(true);
     try {
@@ -765,6 +776,23 @@ function AccountCard(): JSX.Element {
           Manage
         </button>
       </div>
+
+      <div className="list-label" style={{ marginTop: 12 }}>
+        Pair a device
+      </div>
+      <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginTop: 6 }}>
+        <button
+          type="button"
+          className="connect-btn ghost"
+          onClick={() => window.open(pairLink(HUD_URL), '_blank', 'noopener')}
+        >
+          Open HUD
+        </button>
+        <button type="button" className="connect-btn ghost" onClick={() => void copyPhone()}>
+          {copied ? 'Copied ✓' : 'Copy phone link'}
+        </button>
+      </div>
+      <p className="hint-sm">Opens with a one-time token — paste the phone link on your device.</p>
     </Card>
   );
 }

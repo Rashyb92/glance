@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
+import { getToken } from './deviceToken';
 import type {
   ChannelEvent,
   ChatSummary,
@@ -26,15 +27,14 @@ export interface Feed {
   summary: ChatSummary | null;
 }
 
-const TOKEN = import.meta.env['VITE_GLANCE_TOKEN'] as string | undefined;
-function withToken(url: string): string {
-  if (!TOKEN) return url;
-  return `${url}${url.includes('?') ? '&' : '?'}token=${encodeURIComponent(TOKEN)}`;
-}
-const WS_URL = withToken(
+const WS_BASE =
   (import.meta.env['VITE_GLANCE_WS_URL'] as string | undefined) ??
-    `ws://localhost:${(import.meta.env['VITE_GLANCE_WS'] as string | undefined) ?? '8787'}`,
-);
+  `ws://localhost:${(import.meta.env['VITE_GLANCE_WS'] as string | undefined) ?? '8787'}`;
+function wsUrl(): string {
+  const token = getToken();
+  if (!token) return WS_BASE;
+  return `${WS_BASE}${WS_BASE.includes('?') ? '&' : '?'}token=${encodeURIComponent(token)}`;
+}
 
 /** Subscribes to the gateway and exposes just what the companion needs: connection
  *  status, AI priorities, channel events, session (viewer count), settings (audio
@@ -55,7 +55,7 @@ export function useFeed(): Feed {
 
     const connect = (): void => {
       setStatus((s) => (s === 'online' ? s : 'connecting'));
-      const ws = new WebSocket(WS_URL);
+      const ws = new WebSocket(wsUrl());
       wsRef.current = ws;
       ws.onopen = () => setStatus('online');
       ws.onerror = () => ws.close();

@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
+import { getToken } from './deviceToken';
 import type {
   ChannelEvent,
   ChatSummary,
@@ -31,15 +32,14 @@ export interface FeedState {
 // Deploy-configurable: set VITE_GLANCE_WS_URL to a full wss:// URL in production;
 // falls back to a localhost port for dev. VITE_GLANCE_TOKEN selects the tenant
 // (absent → the server's `default` tenant, so local dev needs no token).
-const WS_TOKEN = import.meta.env['VITE_GLANCE_TOKEN'] as string | undefined;
-function withToken(url: string): string {
-  if (!WS_TOKEN) return url;
-  return `${url}${url.includes('?') ? '&' : '?'}token=${encodeURIComponent(WS_TOKEN)}`;
-}
-const WS_URL = withToken(
+const WS_BASE =
   (import.meta.env['VITE_GLANCE_WS_URL'] as string | undefined) ??
-    `ws://localhost:${(import.meta.env['VITE_GLANCE_WS'] as string | undefined) ?? '8787'}`,
-);
+  `ws://localhost:${(import.meta.env['VITE_GLANCE_WS'] as string | undefined) ?? '8787'}`;
+function wsUrl(): string {
+  const token = getToken();
+  if (!token) return WS_BASE;
+  return `${WS_BASE}${WS_BASE.includes('?') ? '&' : '?'}token=${encodeURIComponent(token)}`;
+}
 const MAX_MESSAGES = 80;
 const MAX_EVENTS = 8;
 
@@ -65,7 +65,7 @@ export function useGlanceFeed(): FeedState {
 
     const connect = (): void => {
       setStatus((s) => (s === 'online' ? s : 'connecting'));
-      const ws = new WebSocket(WS_URL);
+      const ws = new WebSocket(wsUrl());
       wsRef.current = ws;
 
       ws.onopen = () => setStatus('online');

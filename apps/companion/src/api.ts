@@ -1,4 +1,5 @@
-const TOKEN = import.meta.env['VITE_GLANCE_TOKEN'] as string | undefined;
+import { getToken } from './deviceToken';
+
 const BASE =
   (import.meta.env['VITE_GLANCE_API_URL'] as string | undefined) ??
   `http://localhost:${(import.meta.env['VITE_GLANCE_WS'] as string | undefined) ?? '8787'}`;
@@ -10,9 +11,10 @@ const BASE =
  */
 export async function markMoment(): Promise<string | null> {
   try {
+    const token = getToken();
     const res = await fetch(`${BASE}/api/mark`, {
       method: 'POST',
-      headers: TOKEN ? { authorization: `Bearer ${TOKEN}` } : {},
+      headers: token ? { authorization: `Bearer ${token}` } : {},
     });
     const json = (await res.json()) as { clipUrl?: string };
     return json.clipUrl ?? null;
@@ -46,11 +48,12 @@ export async function subscribePush(): Promise<boolean> {
       applicationServerKey: urlBase64ToUint8Array(VAPID_PUBLIC),
     });
     const json = sub.toJSON();
+    const token = getToken();
     const res = await fetch(`${BASE}/api/push/subscribe`, {
       method: 'POST',
       headers: {
         'content-type': 'application/json',
-        ...(TOKEN ? { authorization: `Bearer ${TOKEN}` } : {}),
+        ...(token ? { authorization: `Bearer ${token}` } : {}),
       },
       body: JSON.stringify({ platform: 'webpush', endpoint: json.endpoint, keys: json.keys }),
     });
