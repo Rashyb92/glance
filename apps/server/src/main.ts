@@ -23,8 +23,12 @@ import { logger } from './logger';
 
 // Refuse to boot in production without auth: with no secret every client collapses
 // onto the `default` tenant, which would expose tenants to each other.
-if (process.env['NODE_ENV'] === 'production' && !process.env['GLANCE_AUTH_SECRET']) {
-  logger.error('GLANCE_AUTH_SECRET is required in production — refusing to start');
+// Fail closed: require a signing secret in any non-local environment (production, staging,
+// preview). Without it every client collapses onto the `default` tenant, exposing tenants.
+const nodeEnv = process.env['NODE_ENV'];
+const isLocalEnv = nodeEnv === undefined || nodeEnv === 'development' || nodeEnv === 'test';
+if (!isLocalEnv && !process.env['GLANCE_AUTH_SECRET']) {
+  logger.error('GLANCE_AUTH_SECRET is required when NODE_ENV is set (non-dev) — refusing to start');
   process.exit(1);
 }
 
@@ -150,6 +154,10 @@ hub.connect('default', config.channel, config.demo);
 // Enforce each tenant's data-retention policy on a slow cadence.
 const retentionTimer = setInterval(() => hub.runRetention(), 3_600_000);
 retentionTimer.unref?.();
+
+// Reclaim idle push-notifier state so its per-tenant maps can't grow without bound.
+const notifierSweep = setInterval(() => notifier.sweep(), 3_600_000);
+notifierSweep.unref?.();
 
 logger.info('Glance server is live', {
   aiProvider: ai.name,

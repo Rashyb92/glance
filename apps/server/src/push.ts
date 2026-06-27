@@ -61,4 +61,14 @@ export class Notifier {
     this.lastAt.set(tenant, now);
     for (const sub of subs) void this.provider.send(sub, note);
   }
+
+  /** Evict idle per-tenant dedup/rate state on a timer so the maps can't grow unbounded. */
+  sweep(maxIdleMs = 3_600_000, now: number = Date.now()): void {
+    for (const [tenant, at] of this.lastAt) {
+      if (now - at > maxIdleMs) {
+        this.lastAt.delete(tenant);
+        this.lastTag.delete(tenant);
+      }
+    }
+  }
 }

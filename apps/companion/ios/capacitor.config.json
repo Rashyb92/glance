@@ -1,0 +1,19 @@
+{
+  "appId": "app.glance.companion",
+  "appName": "Glance",
+  "webDir": "../dist",
+  "server": {
+    "url": "https://companion.glance.example",
+    "cleartext": false
+  },
+  "ios": {
+    "backgroundColor": "#0a0a0f",
+    "contentInset": "always",
+    "limitsNavigationsToAppBoundDomains": true
+  },
+  "plugins": {
+    "PushNotifications": {
+      "presentationOptions": ["badge", "sound", "alert"]
+    }
+  }
+}

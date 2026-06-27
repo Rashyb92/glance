@@ -49,10 +49,11 @@ export interface StripeEventLite {
  */
 export function planChangeFromEvent(
   event: StripeEventLite,
-): { tenant: string; plan: PlanId } | null {
+): { tenant: string; plan: PlanId; customerId?: string } | null {
   const obj = event.data.object;
   const tenant = readTenant(obj);
   if (!tenant) return null;
+  const customerId = typeof obj['customer'] === 'string' ? obj['customer'] : undefined;
 
   switch (event.type) {
     case 'checkout.session.completed':
@@ -60,10 +61,10 @@ export function planChangeFromEvent(
     case 'customer.subscription.updated':
     case 'invoice.paid': {
       const plan = readPlan(obj);
-      return plan ? { tenant, plan } : null;
+      return plan ? { tenant, plan, customerId } : null;
     }
     case 'customer.subscription.deleted':
-      return { tenant, plan: 'free' };
+      return { tenant, plan: 'free', customerId };
     default:
       return null;
   }

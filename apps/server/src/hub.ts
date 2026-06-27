@@ -146,6 +146,10 @@ export class Hub {
     if (!this.deps.team || !PLANS[this.planId(tenant)].limits.teamManagement) return null;
     return this.deps.team.remove(tenant, id);
   }
+  /** Is this member still on the tenant's roster? Revokes member tokens on removal. */
+  memberActive(tenant: string, memberId: string): boolean {
+    return this.deps.team?.list(tenant).some((m) => m.id === memberId) ?? false;
+  }
 
   // --- push notifications (wearables / companion) — available to all plans ---
   listPush(tenant: string): PushSubscription[] {
@@ -257,9 +261,12 @@ export class Hub {
     // Warm settings from the durable store (Postgres) without blocking tenant creation;
     // when it returns, push them live — onChange applies plan limits + broadcasts.
     if (settingsStore.hydrate) {
-      void settingsStore.hydrate().then((loaded) => {
-        if (loaded) settings.rehydrate(loaded);
-      });
+      void settingsStore
+        .hydrate()
+        .then((loaded) => {
+          if (loaded) settings.rehydrate(loaded);
+        })
+        .catch(() => undefined);
     }
 
     // Apply retention the moment a tenant loads, so idle data ages out on next use.

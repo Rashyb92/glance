@@ -48,6 +48,7 @@ export interface GatewayControl {
     role: string,
   ) => TeamMember | { error: string } | null;
   removeMember: (tenant: string, id: string) => boolean | null;
+  memberActive: (tenant: string, memberId: string) => boolean;
   listPush: (tenant: string) => PushSubscription[];
   subscribePush: (
     tenant: string,
@@ -168,7 +169,7 @@ export function startGateway(
     }
 
     const actor = resolveActor(tokenFromUrl(req.url));
-    if (!actor) {
+    if (!actor || (actor.memberId && !control.memberActive(actor.tenant, actor.memberId))) {
       metrics.inc('glance_ws_unauthorized_total');
       socket.close(1008, 'unauthorized');
       return;
@@ -296,6 +297,11 @@ function handleHttp(
     send(401, { error: 'unauthorized' });
     return;
   }
+  // Member tokens are revoked the instant the member is removed from the roster.
+  if (actor.memberId && !control.memberActive(actor.tenant, actor.memberId)) {
+    send(401, { error: 'unauthorized' });
+    return;
+  }
   const tenant = actor.tenant;
 
   if (url === '/api/session') {
@@ -371,7 +377,10 @@ function handleHttp(
       const member = members.find((m) => m.id === memberId);
       if (!member) return send(404, { error: 'member not found' });
       return send(200, {
-        token: signMemberToken(tenant, member.id, member.role, secret),
+        // 30-day TTL bounds exposure; removal revokes it immediately via memberActive().
+        token: signMemberToken(tenant, member.id, member.role, secret, {
+          ttlSeconds: 60 * 60 * 24 * 30,
+        }),
         role: member.role,
       });
     }
@@ -470,7 +479,7 @@ export function parseChannels(body: Record<string, unknown>): ChannelRef[] {
   const raw = body['channels'];
   if (Array.isArray(raw)) {
     const out: ChannelRef[] = [];
-    for (const item of raw) {
+    for (const item of raw.slice(0, 50)) {
       if (item && typeof item === 'object') {
         const o = item as Record<string, unknown>;
         const channel = typeof o['channel'] === 'string' ? o['channel'] : '';

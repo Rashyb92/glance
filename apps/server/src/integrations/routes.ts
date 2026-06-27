@@ -192,8 +192,8 @@ export function handleIntegrationRoutes(
         }
         const change = planChangeFromEvent(event);
         if (change) {
-          deps.entitlements.setPlan(change.tenant, change.plan);
-          logger.info('plan updated via stripe', change);
+          deps.entitlements.setPlan(change.tenant, change.plan, change.customerId);
+          logger.info('plan updated via stripe', { tenant: change.tenant, plan: change.plan });
         }
         send(200, { received: true });
       })

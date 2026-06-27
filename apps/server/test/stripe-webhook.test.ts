@@ -39,6 +39,14 @@ describe('planChangeFromEvent', () => {
     };
     expect(planChangeFromEvent(e)).toEqual({ tenant: 'acme', plan: 'pro' });
   });
+  it('captures the stripe customer id for the billing portal', () => {
+    const e = {
+      type: 'checkout.session.completed',
+      data: { object: { metadata: { tenant: 'acme', plan: 'pro' }, customer: 'cus_123' } },
+    };
+    expect(planChangeFromEvent(e)).toEqual({ tenant: 'acme', plan: 'pro', customerId: 'cus_123' });
+  });
+
   it('downgrades to free on subscription deletion', () => {
     const e = {
       type: 'customer.subscription.deleted',
