@@ -9,6 +9,8 @@ import type { TokenStore } from './oauth-token-store';
 import type { BillingService } from './billing';
 import type { EntitlementStore } from './entitlement-store';
 import { planChangeFromEvent, verifyStripeSignature, type StripeEventLite } from './stripe-webhook';
+import type { KvStore } from '../kv';
+import type { AuthService } from '../accounts';
 
 const MAX_BODY = 1024 * 1024; // 1 MB cap on integration bodies
 
@@ -19,6 +21,10 @@ export interface IntegrationDeps {
   entitlements: EntitlementStore;
   webhookSecret: string | undefined;
   dashboardUrl: string;
+  /** Self-serve account auth (signup / login / refresh). */
+  auth: AuthService;
+  /** Short-lived OAuth `state` store — Postgres-backed for multi-instance callbacks. */
+  oauthState: OAuthStateStore;
 }
 
 /**
@@ -28,22 +34,51 @@ export interface IntegrationDeps {
 export class OAuthStateStore {
   private readonly map = new Map<string, { tenant: string; verifier?: string; exp: number }>();
 
-  constructor(private readonly ttlMs = 600_000) {}
+  constructor(
+    private readonly ttlMs = 600_000,
+    private readonly kv?: KvStore,
+  ) {}
 
-  put(state: string, tenant: string, verifier: string | undefined, now: number = Date.now()): void {
-    this.map.set(state, { tenant, verifier, exp: now + this.ttlMs });
+  async put(
+    state: string,
+    tenant: string,
+    verifier: string | undefined,
+    now: number = Date.now(),
+  ): Promise<void> {
+    const entry = { tenant, verifier, exp: now + this.ttlMs };
+    if (this.kv) {
+      await this.kv.put(this.key(state), JSON.stringify(entry));
+      return;
+    }
+    this.map.set(state, entry);
   }
 
-  take(state: string, now: number = Date.now()): { tenant: string; verifier?: string } | null {
+  async take(
+    state: string,
+    now: number = Date.now(),
+  ): Promise<{ tenant: string; verifier?: string } | null> {
+    if (this.kv) {
+      const raw = await this.kv.get(this.key(state));
+      if (!raw) return null;
+      await this.kv.delete(this.key(state)); // one-time use
+      try {
+        const entry = JSON.parse(raw) as { tenant: string; verifier?: string; exp: number };
+        return entry.exp < now ? null : { tenant: entry.tenant, verifier: entry.verifier };
+      } catch {
+        return null;
+      }
+    }
     const entry = this.map.get(state);
     if (!entry) return null;
     this.map.delete(state); // one-time use
     if (entry.exp < now) return null;
     return { tenant: entry.tenant, verifier: entry.verifier };
   }
-}
 
-const states = new OAuthStateStore();
+  private key(state: string): string {
+    return `oauthstate:${state}`;
+  }
+}
 
 /**
  * Handles `/api/oauth/*`, `/api/billing/*`, and `/api/stripe/webhook`. Returns true if it
@@ -61,6 +96,7 @@ export function handleIntegrationRoutes(
   if (
     !path.startsWith('/api/oauth/') &&
     !path.startsWith('/api/billing/') &&
+    !path.startsWith('/api/auth/') &&
     path !== '/api/stripe/webhook'
   ) {
     return false;
@@ -74,6 +110,36 @@ export function handleIntegrationRoutes(
     res.writeHead(302, { location, ...cors });
     res.end();
   };
+
+  // Auth: self-serve signup / login / token rotation. These mint a runtime session token —
+  // no token is ever baked into a client build.
+  if (path === '/api/auth/signup' || path === '/api/auth/login') {
+    if (req.method !== 'POST') {
+      send(405, { error: 'method not allowed' });
+      return true;
+    }
+    const isSignup = path.endsWith('/signup');
+    readJson(req)
+      .then(async (body) => {
+        const email = typeof body['email'] === 'string' ? body['email'] : '';
+        const password = typeof body['password'] === 'string' ? body['password'] : '';
+        const result = isSignup
+          ? await deps.auth.signup(email, password)
+          : await deps.auth.login(email, password);
+        send('error' in result ? (isSignup ? 400 : 401) : 200, result);
+      })
+      .catch(() => send(400, { error: 'invalid request' }));
+    return true;
+  }
+  if (path === '/api/auth/refresh' && req.method === 'POST') {
+    const tenant = resolveTenant(tokenFromReq(req));
+    if (!tenant) {
+      send(401, { error: 'unauthorized' });
+      return true;
+    }
+    send(200, deps.auth.refresh(tenant));
+    return true;
+  }
 
   // OAuth: start the link (tenant-scoped).
   if (path.startsWith('/api/oauth/') && path.endsWith('/start')) {
@@ -93,8 +159,10 @@ export function handleIntegrationRoutes(
     }
     const state = randomBytes(16).toString('base64url');
     const built = deps.oauth.buildAuthorize(provider, state);
-    states.put(state, tenant, built.verifier);
-    redirect(built.url);
+    void deps.oauthState
+      .put(state, tenant, built.verifier)
+      .then(() => redirect(built.url))
+      .catch(() => redirect(built.url));
     return true;
   }
 
@@ -107,14 +175,18 @@ export function handleIntegrationRoutes(
     }
     const code = queryParam(req.url, 'code');
     const state = queryParam(req.url, 'state');
-    const entry = state ? states.take(state) : null;
-    if (!code || !entry) {
+    if (!code || !state) {
       send(400, { error: 'invalid oauth callback' });
       return true;
     }
-    deps.oauth
-      .exchangeCode(provider, code, entry.verifier)
-      .then((tokens) => {
+    void deps.oauthState
+      .take(state)
+      .then(async (entry) => {
+        if (!entry) {
+          send(400, { error: 'invalid oauth callback' });
+          return;
+        }
+        const tokens = await deps.oauth.exchangeCode(provider, code, entry.verifier);
         deps.tokens.save(entry.tenant, provider, tokens);
         logger.info('oauth linked', { tenant: entry.tenant, provider });
         redirect(`${deps.dashboardUrl}?linked=${provider}`);

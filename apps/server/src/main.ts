@@ -14,7 +14,8 @@ import { TokenStore } from './integrations/oauth-token-store';
 import type { ProviderId } from './integrations/oauth-providers';
 import { BillingService } from './integrations/billing';
 import { EntitlementStore } from './integrations/entitlement-store';
-import type { IntegrationDeps } from './integrations/routes';
+import { AccountStore, AuthService } from './accounts';
+import { OAuthStateStore, type IntegrationDeps } from './integrations/routes';
 import { TeamStore } from './team-store';
 import { PushStore, type PushPlatform } from './push-store';
 import { DefaultPushProvider, Notifier, type PushProvider } from './push';
@@ -76,7 +77,13 @@ const billing = new BillingService(
   `${dashboardUrl}?billing=success`,
   `${dashboardUrl}?billing=cancel`,
 );
-// OAuth + billing routes mounted on the gateway. Each fails soft until its keys exist.
+// Self-serve account auth (signup/login/refresh) issues runtime session tokens; OAuth `state`
+// is Postgres-backed so a provider callback can complete on any instance.
+const accounts = new AccountStore(kv);
+const auth = new AuthService(accounts, process.env['GLANCE_AUTH_SECRET']);
+const oauthState = new OAuthStateStore(600_000, kv);
+
+// OAuth + billing + auth routes mounted on the gateway. Each fails soft until its keys exist.
 const integrations: IntegrationDeps = {
   oauth,
   tokens,
@@ -84,6 +91,8 @@ const integrations: IntegrationDeps = {
   entitlements,
   webhookSecret: process.env['STRIPE_WEBHOOK_SECRET'],
   dashboardUrl,
+  auth,
+  oauthState,
 };
 
 /** Reads (and refreshes near expiry) a tenant's stored token for a provider. */
