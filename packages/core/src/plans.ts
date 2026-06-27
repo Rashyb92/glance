@@ -46,7 +46,7 @@ export interface PlanLimits {
 export interface Plan {
   id: PlanId;
   name: string;
-  priceMonthlyUsd: number;
+  priceMonthlyGbp: number;
   limits: PlanLimits;
 }
 
@@ -54,7 +54,7 @@ export const PLANS: Record<PlanId, Plan> = {
   free: {
     id: 'free',
     name: 'Free',
-    priceMonthlyUsd: 0,
+    priceMonthlyGbp: 0,
     limits: {
       maxConcurrentSessions: 1,
       retentionDaysCap: 7,
@@ -74,7 +74,7 @@ export const PLANS: Record<PlanId, Plan> = {
   creator: {
     id: 'creator',
     name: 'Creator',
-    priceMonthlyUsd: 18,
+    priceMonthlyGbp: 15,
     limits: {
       maxConcurrentSessions: 1,
       retentionDaysCap: 90,
@@ -94,7 +94,7 @@ export const PLANS: Record<PlanId, Plan> = {
   pro: {
     id: 'pro',
     name: 'Pro',
-    priceMonthlyUsd: 49,
+    priceMonthlyGbp: 39,
     limits: {
       maxConcurrentSessions: 3,
       retentionDaysCap: 365,
@@ -112,6 +112,9 @@ export const PLANS: Record<PlanId, Plan> = {
     },
   },
 };
+
+/** Display currency for plan prices. The charging currency is configured in Stripe. */
+export const PRICE_CURRENCY = 'GBP';
 
 export const DEFAULT_PLAN: PlanId = 'free';
 

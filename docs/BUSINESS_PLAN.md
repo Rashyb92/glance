@@ -1,175 +1,149 @@
 ---
 title: "Glance — Business Plan & Go-to-Market Strategy"
-subtitle: "AI-curated heads-up chat for live creators"
+subtitle: "AI-curated heads-up chat for live creators · a UK company · all figures in GBP (£)"
 date: "June 2026"
 ---
 
-# Executive Summary
+> The polished, formatted version is **`Glance_Business_Plan.docx`** (cover page, contents,
+> financial tables, page numbers). This markdown is the editable source. All figures in **GBP**;
+> source market reports are USD-denominated, converted at **£1 ≈ $1.32** (June 2026).
+
+# 1. Executive Summary
 
 **Glance is the calm, AI-curated heads-up layer for live creators.** It reads a streamer's chat in real time, decides what actually matters — donations, questions, raids, rising topics, the moment to step in — and surfaces just those, on a glanceable overlay, in an earbud, on a phone companion, or on smart glasses. Instead of a firehose the creator can't read, Glance delivers a quiet stream of "what matters right now," hands-free.
 
-The product is built and launch-ready: a multi-tenant TypeScript platform with a salience engine (the moat), live adapters for Twitch, YouTube and Kick, **unified multi-channel chat** that merges simultaneous platforms into one ranked feed, voice commands, real Twitch clip creation, a phone-companion PWA with background push, team seats with per-member logins, Stripe billing, and an independently audited backend. It deploys on a managed stack (Fly + Neon + Upstash + Cloudflare) for **\$0–25/month to start**.
+The product is built and launch-ready: a multi-tenant platform with a salience engine (the moat), live adapters for Twitch, YouTube and Kick, **unified multi-channel chat**, voice commands, real Twitch clip creation, a phone-companion app with background push, team seats with per-member logins, Stripe billing, and an independently audited backend. It deploys on a managed stack for **£0–20/month** to start.
 
-We are **bootstrapping — no external funding required.** Fixed costs are low, gross margins are healthy (~70–80%), and break-even is roughly 5–10 paying creators. The plan below sizes the opportunity, positions Glance against incumbents, lays out the unit economics and conservative financial scenarios, and details a research-backed go-to-market and marketing strategy built around creator partnerships, community, and a calm-by-design product that sells itself in a clip.
+We are **bootstrapping — no external funding required.** Fixed costs are low, gross margins are ~70–75%, and break-even is roughly **5–10 paying creators**.
 
-# The Product
+# 2. The Product
 
-Glance is **not** another overlay/alert/chatbot tool. It is an **attention layer**: a salience engine that scores every message and event, then routes only the high-signal moments to whatever surface the creator is using.
+Glance is **not** another overlay/alert/chatbot tool. It is an **attention layer** — a salience engine that scores every message and event, then routes only the high-signal moments to whatever surface the creator is using: a **HUD overlay**, an **audio/earbud mode**, a **phone-companion PWA** (the no-glasses path), **background push** to phones/wearables, and smart glasses as the flagship surface. Plus **unified multi-channel chat** (Twitch + YouTube + Kick merged into one ranked feed), **voice ("Ask Glance")** including "clip that" (real Twitch clips), and **teams** with revocable per-member logins.
 
-- **Salience engine (the moat).** Deterministic, explainable scoring of donations, mentions, questions, keywords, trends, sentiment, and moderation risk, with periodic AI summaries and priority re-ranking off the critical path. Proven in an eval harness at precision 1.0 / recall 1.0 on adversarial scenarios.
-- **Render targets.** A browser HUD overlay, an **audio/earbud mode** (spoken callouts + earcons), a **phone-companion PWA** (works with just a phone + AirPods — the no-glasses path), background **Web Push** to phones/wearables, and a documented Apple Watch satellite model. Smart glasses are the flagship surface, not the requirement.
-- **Unified multi-channel chat.** Go live on Twitch + YouTube + Kick at once; Glance merges all chats into one salience-ranked feed with per-message source badges and summed viewer counts.
-- **Voice ("Ask Glance").** Hands-free: "any donations?", "what should I answer?", "clip that" (creates a real Twitch clip), "what's the vibe?".
-- **Teams.** Multi-seat accounts with roles (owner/admin/member) and revocable per-member logins, so a manager, editor, and moderator can share one creator's cockpit.
+# 3. The Problem (validated)
 
-# The Problem (validated)
+Streamers "struggle to keep up with chat, resulting in missed messages, awkward pauses, and viewers feeling ignored," and the top-recommended upgrade for a new streamer is *a second monitor just to see chat*; text-to-speech reading everything "can get overwhelming" ([StreamScheme](https://www.streamscheme.com/how-to-view-twitch-chat-while-streaming/), [Murf](https://murf.ai/blog/twitch-text-to-speech)). Structurally, **55%+ of streamers broadcast to fewer than five concurrent viewers while the top 1% dominate** ([ElectroIQ](https://electroiq.com/stats/twitch-statistics/)). Glance serves both ends — *everything that matters* for the small creator, *only what matters* for the large one.
 
-Live chat is a firehose, and missing it costs creators their community. Industry guidance is blunt about the pain: streamers "struggle to keep up with chat, resulting in missed messages, awkward pauses, and viewers feeling ignored," and the single most-recommended upgrade for a new streamer is *a second monitor just to see chat* ([StreamScheme](https://www.streamscheme.com/how-to-view-twitch-chat-while-streaming/)). The common workaround — text-to-speech reading every message — "can get overwhelming" and is advised only for occasional moments ([Murf](https://murf.ai/blog/twitch-text-to-speech)). 
+# 4. Market Opportunity
 
-The structural reality: **more than half of streamers broadcast to fewer than five concurrent viewers, while the top 1% dominate** ([ElectroIQ](https://electroiq.com/stats/twitch-statistics/)). Small creators are desperate to catch every message and build community; large creators are drowning in volume and miss the moments that matter. Glance serves both ends of the curve — surfacing *everything that matters* for the small creator, and *only what matters* for the large one. No incumbent solves attention; they add more overlays to an already-crowded screen.
-
-# Market Opportunity
-
-**The creator economy is large and compounding.** Estimates cluster around **\$250 billion in 2025, rising to ~\$310–323 billion in 2026**, with long-run forecasts of **\$1.3–2.1 trillion by 2033–2035** (CAGR ~23–30%) ([Grand View Research](https://www.grandviewresearch.com/industry-analysis/creator-economy-market-report); [Precedence Research](https://www.precedenceresearch.com/creator-economy-market); [Market.us](https://market.us/report/creator-economy-market/)).
-
-**Live streaming is the fastest, stickiest slice.** The live-streaming *software* market is ~**\$12.4B in 2025, heading to ~\$46B by 2032** (~20.6% CAGR) ([Business Research Insights](https://www.businessresearchinsights.com/market-reports/live-stream-software-market-100418)). Engagement is at record highs: the four major platforms logged **30+ billion hours watched in a single quarter (Q4 2025)** ([Streams Charts](https://streamscharts.com/news/q4-2025-global-livestreaming-landscape)).
+The creator economy is ~**£190bn (~$250bn) in 2025**, rising to **~£235–245bn in 2026**, with long-run forecasts of **£1.0–1.6tn by 2033–35** (CAGR ~23–30%) ([Grand View](https://www.grandviewresearch.com/industry-analysis/creator-economy-market-report), [Precedence](https://www.precedenceresearch.com/creator-economy-market)). The live-streaming **software** market is ~**£9.4bn (2025) → ~£35bn by 2032** (~20.6% CAGR) ([Business Research Insights](https://www.businessresearchinsights.com/market-reports/live-stream-software-market-100418)); the four major platforms logged **30bn+ hours in Q4 2025** ([Streams Charts](https://streamscharts.com/news/q4-2025-global-livestreaming-landscape)).
 
 | Platform | 2025 position | Scale signal |
 |---|---|---|
-| YouTube Live | #1, ~50% of watch hours | ~56B hours watched in 2025 |
-| TikTok Live | #2, 27–31% share | 8B+ hours/quarter; surpassed Twitch in Q1 2025 |
-| Twitch | #3, gaming/esports leader (~16%) | 11.4M monthly streamers, ~2.1M avg concurrent, ~19B hrs/yr |
-| Kick | Fastest-growing, ~11% | 4.5B hours (+131% YoY); strong in Spanish markets |
+| YouTube Live | #1, ~50% of watch hours | ~56bn hours in 2025 |
+| TikTok Live | #2, 27–31% | 8bn+ hrs/quarter; passed Twitch Q1 2025 |
+| Twitch | #3 (~16%), gaming/esports | 11.4m monthly streamers, ~2.1m concurrent |
+| Kick | Fastest-growing, ~11% | 4.5bn hrs (+131% YoY) |
 
-*Sources: [Streams Charts](https://streamscharts.com/news/livestreaming-platforms-dynamics-2025-youtube-live-strengthens-positions-twitch-viewership-down-10), [ElectroIQ](https://electroiq.com/stats/twitch-statistics/), [NetInfluencer](https://www.netinfluencer.com/livestreaming-sees-shift-as-kick-joins-big-four-in-q2-2025/).*
+**Glasses tailwind:** Meta sold **7m+ AI glasses in 2025 (tripled YoY, ~73% share)**; Ray-Ban Display launched at **~£605 ($799)** ([Counterpoint](https://counterpointresearch.com/en/insights/post-insight-research-briefs-blogs-global-smart-glasses-shipments-soared-110-yoy-in-h1-2025-with-meta-capturing-over-70-share), [CNBC](https://www.cnbc.com/2026/02/11/ray-ban-maker-essilorluxottica-triples-sales-of-meta-ai-glasses.html)). At ~£20/mo blended paid ARPU, **50,000 paying creators ≈ £12m ARR; 250,000 ≈ £60m ARR.**
 
-**The glasses tailwind is real and early.** Meta/EssilorLuxottica sold **7M+ AI glasses in 2025 — roughly tripling the prior two years combined — at ~73% market share**, and Ray-Ban *Display* glasses launched at \$799 ([Counterpoint](https://counterpointresearch.com/en/insights/post-insight-research-briefs-blogs-global-smart-glasses-shipments-soared-110-yoy-in-h1-2025-with-meta-capturing-over-70-share); [CNBC](https://www.cnbc.com/2026/02/11/ray-ban-maker-essilorluxottica-triples-sales-of-meta-ai-glasses.html)). Glance is platform-agnostic today (phone/earbud/overlay) and positioned to ride glasses adoption as the killer "heads-up" surface arrives.
+# 5. Competitive Landscape
 
-**Bottom-up TAM/SAM/SOM.** With **2.4M+ weekly Twitch streamers** alone — before YouTube, Kick, TikTok — a serviceable base of *serious, recurring* streamers across platforms is in the **low millions**. At our blended ARPU (~\$22/mo on paid), capturing even **50,000 paying creators is ~\$13M ARR**; **250,000 is ~\$66M ARR**. The wedge is narrow (attention for serious streamers) but the ceiling is large.
+| Capability | **Glance** | StreamElements | Streamlabs |
+|---|---|---|---|
+| Category | AI attention layer | Overlays/marketplace | Overlays (OBS app) |
+| Multi-platform merge | **Yes** | Per-platform | Per-platform |
+| Audio / earbud / glasses | **Yes** | No | No |
+| AI salience/priority | **Yes (moat)** | No | Limited |
+| Pricing | £0 / £15 / £39 | Free (marketplace cut) | Free + ~£20/mo Ultra |
 
-# Competitive Landscape
+Incumbents add pixels to a screen the creator can't watch; Glance removes the screen and says what matters. Their threat is distribution (StreamElements 1.1m+ creators) and "free"; we counter with a generous free tier, an unserved wedge, and a product that demos itself in a clip.
 
-The creator-tool market is crowded with **overlay/alert/donation** suites — but none is an attention layer, and none targets the heads-up/glasses/audio surface.
+# 6. Business Model & Pricing
 
-| | **Glance** | StreamElements | Streamlabs | Nightbot/chatbots |
-|---|---|---|---|---|
-| Category | AI attention layer | Overlays/alerts/marketplace | Overlays/alerts (OBS app) | Chat moderation/commands |
-| Core value | *What matters, surfaced* | Free overlays + monetization | All-in-one desktop suite | Automated chat |
-| Multi-platform merge | **Yes (unified feed)** | Per-platform | Per-platform | Per-platform |
-| Audio / earbud / glasses | **Yes** | No | No | No |
-| AI salience/priority | **Yes (the moat)** | No | Limited | No |
-| Pricing | \$0 / \$18 / \$49 | Free (marketplace cut) | Free + \$27/mo Ultra | Free |
-
-*Sources: [StreamElements](https://streamelements.com/), [Streamlabs pricing](https://checkthat.ai/brands/streamlabs/pricing).*
-
-**Why we win:** incumbents add pixels to a screen the creator already can't watch; Glance removes the screen entirely and tells them what matters. The salience engine, multi-platform merge, and hands-free surfaces are defensible and not on incumbents' roadmaps. **Why incumbents are a threat:** distribution (StreamElements has 1.1M+ creators) and "free." We counter with a generous free tier, a wedge they don't serve, and a product that demos itself in a 15-second clip.
-
-# Business Model & Pricing
-
-Freemium SaaS with three tiers, gated primarily by an **AI usage cap** (the real cost lever) plus scale/brand/team features.
-
-| | **Free** \$0 | **Creator** \$18/mo | **Pro** \$49/mo |
+| Feature | **Free £0** | **Creator £15/mo** | **Pro £39/mo** |
 |---|---|---|---|
 | Salience engine, 1 platform | ✓ | ✓ | ✓ |
-| AI calls/day | 500 | 10,000 | 200,000 |
+| AI calls/day | 500 (rules-first) | 10,000 | 200,000 |
 | Audio / voice / "Ask Glance" | — | ✓ | ✓ |
-| Chat pace (Balanced/Calm) | Live only | ✓ | ✓ |
 | Multi-platform merge | — | ✓ | ✓ |
-| Moderation actions, advanced analytics, branded overlays | — | — | ✓ |
-| Team seats | 1 | 1 | 5 |
-| Concurrent channels | 1 | 1 | 3 |
-| Priority support | — | — | ✓ |
+| Moderation, analytics, branding | — | — | ✓ |
+| Team seats / concurrent channels | 1 / 1 | 1 / 1 | 5 / 3 |
 
-Annual billing (~2 months free) drives prepayment and reduces churn. The cap-based model means **a free user costs cents; a Pro user pays for their own AI** — unit economics scale with the price.
+Annual billing = two months free (prepay, lower churn). Cap-based gating means a free user costs pennies and a Pro user pays for their own AI.
 
-# Unit Economics & Financial Projections
+# 7. Financial Plan
 
-**Cost structure.** The dominant variable cost is the Anthropic (Claude) API; everything else is small.
+The dominant variable cost is the Claude API; everything else is small and largely fixed. The **free tier defaults to the rules engine** (near-zero marginal AI cost), and per-tier caps bound paid-plan worst cases.
 
-- **AI COGS (Haiku + caps):** ~\$3–8/mo per active Creator, ~\$8–20/mo per Pro. The deterministic rules engine is the **\$0 fallback**, and per-tier caps bound the worst case.
-- **Fixed infra:** ~\$25–100/mo early (Fly + Neon + Upstash free/low tiers + Cloudflare), scaling sub-linearly to ~\$1–3k/mo at tens of thousands of users.
-- **Payments:** Stripe ~2.9% + \$0.30.
+**Per-user unit economics (monthly):**
 
-**Gross margin** lands ~**70–80%** blended. **Break-even is ~5–10 paying creators** — which is why no funding is needed.
+| Tier | Price | AI COGS | Payments | Infra | Gross profit | Margin |
+|---|---|---|---|---|---|---|
+| Free | £0.00 | £0.10 | — | £0.05 | −£0.15 | loss-leader |
+| Creator | £15.00 | £3.00 | £0.70 | £0.30 | £11.00 | 73% |
+| Pro | £39.00 | £10.00 | £1.40 | £0.50 | £27.10 | 70% |
 
-**Illustrative scenarios** (assumptions: ~3–5% free→paid, ~5–8% monthly churn, 80/20 Creator/Pro mix; *projections, not promises*):
+Blended paid ARPU (80/20 Creator/Pro) = **£19.80/mo at ~72% gross margin** (~£14 gross profit per paying creator).
 
-| Metric | End of Year 1 (conservative) | Year 2 (base) | Year 3 (growth) |
+**Key assumptions:** ~4% free→paid; 80/20 Creator/Pro; ~6% monthly churn (~17-month lifetime); 70–75% blended margin; rules-first free tier; annual prepay.
+
+**Three-year P&L (illustrative, GBP — projections, not promises):**
+
+| Line item | Year 1 | Year 2 | Year 3 |
 |---|---|---|---|
-| Free users | 5,000 | 30,000 | 100,000 |
-| Paying creators | ~200 | ~1,500 | ~5,000 |
-| MRR | ~\$4,800 | ~\$38,000 | ~\$130,000 |
-| ARR run-rate | ~\$58K | ~\$455K | ~\$1.55M |
-| Gross margin | ~70% | ~75% | ~78% |
+| Free users (EOY) | 5,000 | 30,000 | 100,000 |
+| Paying creators (EOY) | 200 | 1,500 | 5,000 |
+| End-of-year MRR | £3,960 | £29,700 | £99,000 |
+| Revenue (in-year) | £22,000 | £200,000 | £770,000 |
+| COGS (AI, infra, payments) | (£6,600) | (£56,000) | (£200,000) |
+| **Gross profit** | **£15,400** | **£144,000** | **£570,000** |
+| Marketing & creator partnerships | (£6,000) | (£45,000) | (£160,000) |
+| Salaries & contractors | (£2,000) | (£45,000) | (£200,000) |
+| Tools, infra & overhead | (£1,200) | (£6,000) | (£18,000) |
+| Other / contingency | — | (£12,000) | (£45,000) |
+| **Operating profit (net)** | **£6,200** | **£36,000** | **£147,000** |
 
-Even the conservative Year-1 path covers all costs and is cash-flow positive — the entire point of a bootstrapped, capital-efficient model. Upside levers: annual prepay, team seats (5× ARPU), and glasses adoption pulling Free→Creator conversion.
+**Break-even** is ~5–10 paying creators (vs ~£50–100/mo fixed infra), reached in the private beta — so Glance is cash-flow positive from early Year 1 and self-funds its first hires.
 
-# Go-to-Market Strategy
+**Customer economics:** gross-profit LTV ~**£235** (~£14/mo × ~17 months); target **CAC < £70** (affiliate/organic-led); **LTV:CAC > 3:1**, payback **< 5 months**.
 
-**Positioning:** *"Never miss what matters in your chat — hands-free."* Calm, not louder.
+**Sensitivity:** at 2% conversion (half base), Year-2 revenue ~£100k and still profitable; a 2× Claude price rise trims margin ~8–10 points (still positive); −1pt churn adds ~£40 LTV.
 
-**Beachhead segment:** *serious solo streamers on Twitch/Kick* (1,000–50,000 followers) who already feel chat overwhelm and pay for tools — then expand up-market to teams/agencies (Pro) and across to YouTube/TikTok creators.
+# 8. Go-to-Market Strategy
 
-**Wedge → expansion motion:**
-1. **Land** with the free tier and the no-glasses companion (phone + earbuds) — zero hardware barrier, instant "aha" when Glance speaks the donation they'd have missed.
-2. **Convert** to Creator (\$18) for audio/voice/multi-platform once they feel the value live.
-3. **Expand** to Pro (\$49) for teams, multi-channel simulcast, branded overlays, analytics — the agency/large-creator tier.
+**Positioning:** *"Never miss what matters in your chat — hands-free."* **Beachhead:** serious solo Twitch/Kick streamers (1k–50k followers). **Motion:** Land (free + no-glasses companion) → Convert (Creator £15, audio/voice/multi-platform) → Expand (Pro £39, teams/simulcast/branding). **Sequence:** private beta → Product Hunt/Indie Hackers launch → creator-partner flywheel → platform & glasses.
 
-**Sequenced launch:**
-- **Phase 0 — Private beta (now):** 25–50 hand-picked streamers across sizes; instrument activation and the "clip that" wow-moment; collect testimonials and demo clips.
-- **Phase 1 — Public launch:** Product Hunt + Indie Hackers + a launch-day creator clip blitz (below).
-- **Phase 2 — Creator-partner flywheel:** paid + affiliate partnerships with micro/nano streamers; their on-stream usage *is* the ad.
-- **Phase 3 — Platform & glasses:** lean into multi-platform simulcasters and smart-glasses early adopters as that surface matures.
+# 9. Marketing Strategy (research-backed)
 
-# Marketing Strategy (research-backed)
+Other creators are the highest-ROI channel — dedicated tutorials convert **4–8× a mention** ([getSaral](https://www.getsaral.com/academy/b2c-saas-influencer-marketing-playbook)).
 
-The highest-ROI channel for selling software to creators is **other creators**. Dedicated tutorial content from a trusted creator converts **4–8× better than a passing mention** (at ~2–3× the cost), making influencer/creator marketing one of the highest-ROI acquisition channels for SaaS when structured correctly ([SaaS influencer playbook](https://www.getsaral.com/academy/b2c-saas-influencer-marketing-playbook)). Our plan stacks the channels that compound:
+1. **Creator partnerships (primary)** — micro/nano streamers on a hybrid (flat + per-signup) model for dedicated "how I never miss chat" content; track signups/link, trial→paid, CPL.
+2. **Community (Discord)** — owned server + sponsorships of creator-tool servers ([Digiday](https://digiday.com/media/brands-turn-to-discord-servers-as-a-means-to-reach-niche-influencer-channels-in-their-own-communities/)).
+3. **Launch moment** — weekend Product Hunt with a strong demo video, pre-built community, first-3-hours push ([RocketDevs](https://rocketdevs.com/blog/how-to-launch-on-product-hunt)); build-in-public on X/IH.
+4. **Content & SEO** — own "how to read Twitch chat while streaming," "stop missing donations"; short-form "clip that" clips drive discovery.
+5. **Coordinated multiplatform** — Discord + partner streams + TikTok + X on one calendar.
 
-1. **Creator partnerships (primary).** Recruit **micro/nano streamers** (the segment that converts) on a **hybrid model** — small flat fee + per-signup bonus via unique promo links — for *dedicated* "how I never miss chat anymore" content. Glance is uniquely demo-able: the product visibly does its job *on their own live stream*. Track trial signups per creator link, trial→paid, and CPL.
-2. **Community (Discord).** A branded Glance Discord for onboarding, feedback, and a creator-affiliate hub, plus sponsorships of established streamer/creator-tool servers where the audience self-organizes ([Digiday](https://digiday.com/media/brands-turn-to-discord-servers-as-a-means-to-reach-niche-influencer-channels-in-their-own-communities/)).
-3. **Launch moment (Product Hunt + Indie Hackers).** A weekend launch with a strong **demo video** (evergreen asset), a pre-built supporter community, and heavy first-3-hours engagement — the window that makes or breaks PH ranking ([RocketDevs](https://rocketdevs.com/blog/how-to-launch-on-product-hunt)). Pair with build-in-public threads on X/LinkedIn/Indie Hackers, which convert strongly for indie SaaS ([Indie Hackers](https://awesome-directories.com/blog/indie-hackers-launch-strategy-guide-2025/)).
-4. **Content & SEO.** Own the long-tail intent the research surfaced — "how to read Twitch chat while streaming," "stop missing donations," "multi-platform chat" — with genuinely useful guides that funnel to the free tier. Short-form clips (TikTok/Shorts/Reels) of the "clip that" and "any donations?" moments are the discovery engine.
-5. **Coordinated multiplatform.** Tie Discord, Twitch/YouTube partner streams, TikTok discovery, and X threads into one calendar — the pattern proven for reaching gaming/creator audiences.
+**Bootstrapped budget:** affiliate/performance + organic + community first; CAC payback < 90 days.
 
-**Budget posture (bootstrapped):** start with **affiliate/performance** (pay only for results) + organic content + community, layering a modest flat-fee creator budget once CPL is proven. Target blended **CAC < 3 months of gross margin** (CAC payback < 90 days).
+# 10. Operations & Team
 
-# Operations & Team
+Managed-simple infra (Fly/Neon/Upstash/Cloudflare); community-first support; signed-token auth + AES-256-GCM at rest + GDPR-style controls + audited backend (no criticals). Lean, founder-led; first hires (revenue-funded) are a creator-partnerships/dev-advocate lead and part-time support.
 
-- **Infrastructure:** managed-simple (Fly server, Neon Postgres, Upstash Redis, Cloudflare Pages) — see the Go-Live Runbook. Observability via `/metrics` + `/health`; env-driven config; per-tenant isolation verified by independent audit.
-- **Support:** community-first (Discord) + email; priority support as a Pro differentiator.
-- **Compliance/trust:** signed-token auth, AES-256-GCM encryption at rest, GDPR-style retention controls and data export/delete, SSRF-guarded outbound calls, and a documented pre-launch security audit (no criticals).
-- **Team:** lean founder-led to start; first hires are a developer-advocate/creator-partnerships lead and part-time support, funded from revenue.
+# 11. Roadmap
 
-# Roadmap
+- **Now:** salience engine, Twitch/YouTube/Kick, multi-channel, voice, real clips, companion + push, teams, billing, hardened/audited backend, deploy + store scaffolds.
+- **0–3 mo:** Android (TWA) + iOS (Capacitor) store builds; APNs push; token denylist; Postgres-back push/team stores.
+- **3–6 mo:** native Apple Watch app; deeper analytics; moderation auto-actions; Spanish localisation.
+- **6–12 mo:** native smart-glasses targets; SDK/partner programme; agency console.
 
-- **Now (launch-ready):** salience engine, Twitch/YouTube/Kick, unified multi-channel, voice, real clips, companion PWA + push, teams, billing, hardened/audited backend, deploy + store scaffolds.
-- **0–3 months:** native Android (TWA) and iOS (Capacitor) store builds; real APNs push; immediate-revocation token denylist; move push/team stores to Postgres for horizontal scale.
-- **3–6 months:** native Apple Watch app; deeper analytics; moderation auto-actions; localization (Spanish — Kick's stronghold).
-- **6–12 months:** smart-glasses native render targets as the surface matures; SDK/partner program; agency/multi-creator console.
-
-# Risks & Mitigations
+# 12. Risks & Mitigations
 
 | Risk | Mitigation |
 |---|---|
-| AI cost spikes with usage | Per-tier caps, Haiku for high-frequency calls, \$0 rules fallback; cap = the price lever. |
-| Incumbent adds "AI" features | Salience engine + multi-surface depth is hard to copy; ship faster, own the heads-up/audio niche. |
-| Platform API/policy changes | Adapter seam isolates each platform; multi-platform spreads risk; fail-soft everywhere. |
-| Slow glasses adoption | Product works today on phone/earbud/overlay — glasses are upside, not dependency. |
-| Free-tier abuse / cost | 500-call cap + rate limits + SSRF guards + per-tenant caps (audited). |
-| Single-founder bandwidth | Bootstrapped, low-ops managed stack; revenue-funded first hires. |
+| AI cost spikes | Per-tier caps; Haiku; £0 rules fallback (the cap is the price lever). |
+| Incumbent "AI" features | Salience + multi-surface depth; ship faster; own the audio/heads-up niche. |
+| Platform API/policy change | Adapter seam; multi-platform spreads risk; fail-soft. |
+| Slow glasses adoption | Works today on phone/earbud/overlay — glasses are upside. |
+| Free-tier abuse/cost | Rules-first free tier; caps; rate limits; SSRF guards (audited). |
+| Single-founder bandwidth | Bootstrapped, low-ops stack; revenue-funded hires. |
 
-# Conclusion
+# 13. Conclusion
 
-The market is large and growing, the problem is real and validated, incumbents don't solve attention, and Glance is **built, audited, and launch-ready** with a capital-efficient model that needs no funding. The path to a sustainable, profitable business runs through creators showing other creators a product that quietly does the one thing they all struggle with: never miss what matters.
+Large, growing market; real, validated problem; incumbents don't solve attention; product built, audited and launch-ready; capital-efficient model that needs no funding. The path to a profitable business runs through creators showing other creators a product that quietly does the one thing they all struggle with: never miss what matters.
 
 ---
 
 ## Sources
 
-- Creator economy size: [Grand View Research](https://www.grandviewresearch.com/industry-analysis/creator-economy-market-report), [Precedence Research](https://www.precedenceresearch.com/creator-economy-market), [Market.us](https://market.us/report/creator-economy-market/)
-- Live-streaming market: [Business Research Insights](https://www.businessresearchinsights.com/market-reports/live-stream-software-market-100418), [Streams Charts Q4 2025](https://streamscharts.com/news/q4-2025-global-livestreaming-landscape)
-- Platform stats: [Streams Charts](https://streamscharts.com/news/livestreaming-platforms-dynamics-2025-youtube-live-strengthens-positions-twitch-viewership-down-10), [ElectroIQ Twitch stats](https://electroiq.com/stats/twitch-statistics/), [NetInfluencer (Kick)](https://www.netinfluencer.com/livestreaming-sees-shift-as-kick-joins-big-four-in-q2-2025/)
-- Smart glasses: [Counterpoint Research](https://counterpointresearch.com/en/insights/post-insight-research-briefs-blogs-global-smart-glasses-shipments-soared-110-yoy-in-h1-2025-with-meta-capturing-over-70-share), [CNBC/EssilorLuxottica](https://www.cnbc.com/2026/02/11/ray-ban-maker-essilorluxottica-triples-sales-of-meta-ai-glasses.html)
-- Competitors: [StreamElements](https://streamelements.com/), [Streamlabs pricing](https://checkthat.ai/brands/streamlabs/pricing)
-- Problem validation: [StreamScheme](https://www.streamscheme.com/how-to-view-twitch-chat-while-streaming/), [Murf TTS](https://murf.ai/blog/twitch-text-to-speech)
-- Marketing: [getSaral SaaS influencer playbook](https://www.getsaral.com/academy/b2c-saas-influencer-marketing-playbook), [RocketDevs Product Hunt](https://rocketdevs.com/blog/how-to-launch-on-product-hunt), [Indie Hackers launch strategy](https://awesome-directories.com/blog/indie-hackers-launch-strategy-guide-2025/), [Digiday (Discord)](https://digiday.com/media/brands-turn-to-discord-servers-as-a-means-to-reach-niche-influencer-channels-in-their-own-communities/)
+[Grand View Research](https://www.grandviewresearch.com/industry-analysis/creator-economy-market-report) · [Precedence Research](https://www.precedenceresearch.com/creator-economy-market) · [Market.us](https://market.us/report/creator-economy-market/) · [Business Research Insights](https://www.businessresearchinsights.com/market-reports/live-stream-software-market-100418) · [Streams Charts Q4 2025](https://streamscharts.com/news/q4-2025-global-livestreaming-landscape) · [ElectroIQ — Twitch](https://electroiq.com/stats/twitch-statistics/) · [NetInfluencer — Kick](https://www.netinfluencer.com/livestreaming-sees-shift-as-kick-joins-big-four-in-q2-2025/) · [Counterpoint — smart glasses](https://counterpointresearch.com/en/insights/post-insight-research-briefs-blogs-global-smart-glasses-shipments-soared-110-yoy-in-h1-2025-with-meta-capturing-over-70-share) · [CNBC/EssilorLuxottica](https://www.cnbc.com/2026/02/11/ray-ban-maker-essilorluxottica-triples-sales-of-meta-ai-glasses.html) · [StreamElements](https://streamelements.com/) · [Streamlabs pricing](https://checkthat.ai/brands/streamlabs/pricing) · [StreamScheme](https://www.streamscheme.com/how-to-view-twitch-chat-while-streaming/) · [Murf](https://murf.ai/blog/twitch-text-to-speech) · [getSaral](https://www.getsaral.com/academy/b2c-saas-influencer-marketing-playbook) · [RocketDevs](https://rocketdevs.com/blog/how-to-launch-on-product-hunt) · [Digiday](https://digiday.com/media/brands-turn-to-discord-servers-as-a-means-to-reach-niche-influencer-channels-in-their-own-communities/) · FX £1≈$1.32 ([exchangerates.org.uk](https://www.exchangerates.org.uk/GBP-USD-spot-exchange-rates-history-2026.html))

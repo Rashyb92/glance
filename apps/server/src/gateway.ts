@@ -48,6 +48,7 @@ export interface GatewayControl {
     role: string,
   ) => TeamMember | { error: string } | null;
   removeMember: (tenant: string, id: string) => boolean | null;
+  revokeMember: (tenant: string, memberId: string) => boolean | null;
   memberActive: (tenant: string, memberId: string) => boolean;
   listPush: (tenant: string) => PushSubscription[];
   subscribePush: (
@@ -236,6 +237,7 @@ export function startGateway(
       clearInterval(sweeper);
       for (const client of wss.clients) client.close(1001, 'server shutting down');
       wss.close();
+      server.closeAllConnections?.(); // drop lingering keep-alive sockets (Node 18.2+)
       server.close();
     },
   };
@@ -383,6 +385,13 @@ function handleHttp(
         }),
         role: member.role,
       });
+    }
+    // POST /api/team/:id/revoke — force-logout a member without removing them.
+    if (rest.endsWith('/revoke') && req.method === 'POST') {
+      if (!canManageTeam(actor.role)) return send(403, { error: 'admins only' });
+      const memberId = decodeURIComponent(rest.slice(0, -'/revoke'.length));
+      const ok = control.revokeMember(tenant, memberId);
+      return send(ok === null ? 403 : 200, ok === null ? { error: 'not on your plan' } : { ok });
     }
     if (req.method === 'DELETE') {
       if (!canManageTeam(actor.role)) return send(403, { error: 'admins only' });

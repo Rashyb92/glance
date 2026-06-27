@@ -4,7 +4,7 @@ import { createAIProvider } from '@glance/ai';
 import { loadConfig } from './config';
 import { startGateway } from './gateway';
 import { Hub } from './hub';
-import { InProcessBus } from './bus';
+import { InProcessBus, type Bus } from './bus';
 import { FileSettingsStore, KvSettingsStore } from './settings-store';
 import { FileStorage } from './storage';
 import { PgKvStore, type KvStore } from './kv';
@@ -16,9 +16,13 @@ import { BillingService } from './integrations/billing';
 import { EntitlementStore } from './integrations/entitlement-store';
 import type { IntegrationDeps } from './integrations/routes';
 import { TeamStore } from './team-store';
-import { PushStore } from './push-store';
-import { DefaultPushProvider, Notifier } from './push';
+import { PushStore, type PushPlatform } from './push-store';
+import { DefaultPushProvider, Notifier, type PushProvider } from './push';
 import { WebPushProvider } from './web-push';
+import { RedisBus } from './redis-bus';
+import { RedisUsageMeter, type UsageMeter } from './ai-usage';
+import { createRedisClients } from './redis-client';
+import { ApnsProvider, FcmProvider, RoutingPushProvider } from './native-push';
 import { logger } from './logger';
 
 // Refuse to boot in production without auth: with no secret every client collapses
@@ -84,7 +88,23 @@ function tokenAccessor(provider: ProviderId) {
   };
 }
 
-const bus = new InProcessBus();
+// Multi-instance fan-out + a fleet-wide AI usage meter when REDIS_URL is set; in-process
+// otherwise. `redis` is an optional dependency, loaded only on this path.
+let bus: Bus = new InProcessBus();
+let usageMeter: UsageMeter | undefined;
+const redisUrl = process.env['REDIS_URL'];
+if (redisUrl) {
+  try {
+    const redis = createRedisClients(redisUrl);
+    bus = new RedisBus(redis.publisher, redis.subscriber);
+    usageMeter = new RedisUsageMeter(redis.counters);
+    logger.info('bus + AI usage meter: Redis (multi-instance)');
+  } catch (err) {
+    logger.warn('REDIS_URL set but redis unavailable — using in-process bus + meter', {
+      error: err instanceof Error ? err.message : String(err),
+    });
+  }
+}
 const team = new TeamStore(resolve(repoRoot, '.data', 'teams'));
 const push = new PushStore(resolve(repoRoot, '.data', 'push'));
 
@@ -93,17 +113,41 @@ const push = new PushStore(resolve(repoRoot, '.data', 'push'));
 // Real background delivery when VAPID keys are configured (Web Push to the companion /
 // wearables); otherwise webhook subs still POST and apns/fcm log via the default provider.
 const defaultPush = new DefaultPushProvider((m) => logger.info(m));
+const pushRoutes: Partial<Record<PushPlatform, PushProvider>> = {};
 const vapidPublic = process.env['VAPID_PUBLIC_KEY'];
 const vapidPrivate = process.env['VAPID_PRIVATE_KEY'];
-const pushProvider =
-  vapidPublic && vapidPrivate
-    ? new WebPushProvider(
-        vapidPublic,
-        vapidPrivate,
-        process.env['VAPID_SUBJECT'] ?? 'mailto:ops@glance.app',
-        defaultPush,
-      )
-    : defaultPush;
+if (vapidPublic && vapidPrivate) {
+  pushRoutes.webpush = new WebPushProvider(
+    vapidPublic,
+    vapidPrivate,
+    process.env['VAPID_SUBJECT'] ?? 'mailto:ops@glance.app',
+    defaultPush,
+  );
+}
+const apnsKey = process.env['APNS_KEY'];
+const apnsKeyId = process.env['APNS_KEY_ID'];
+const apnsTeam = process.env['APNS_TEAM_ID'];
+const apnsBundle = process.env['APNS_BUNDLE_ID'];
+if (apnsKey && apnsKeyId && apnsTeam && apnsBundle) {
+  pushRoutes.apns = new ApnsProvider({
+    keyId: apnsKeyId,
+    teamId: apnsTeam,
+    privateKey: apnsKey.replace(/\\n/g, '\n'),
+    bundleId: apnsBundle,
+    production: process.env['APNS_PRODUCTION'] === '1',
+  });
+}
+const fcmProject = process.env['FCM_PROJECT_ID'];
+const fcmEmail = process.env['FCM_CLIENT_EMAIL'];
+const fcmKey = process.env['FCM_PRIVATE_KEY'];
+if (fcmProject && fcmEmail && fcmKey) {
+  pushRoutes.fcm = new FcmProvider({
+    projectId: fcmProject,
+    clientEmail: fcmEmail,
+    privateKey: fcmKey.replace(/\\n/g, '\n'),
+  });
+}
+const pushProvider = new RoutingPushProvider(pushRoutes, defaultPush);
 const notifier = new Notifier(push, pushProvider);
 bus.subscribe((tenant, message) => notifier.consider(tenant, message));
 
@@ -144,6 +188,7 @@ const hub = new Hub({
   push,
   // Enforce real plans only when billing is configured; dev/self-host stays ungated.
   entitlements: process.env['STRIPE_SECRET_KEY'] ? entitlements : undefined,
+  usage: usageMeter,
 });
 
 const gateway = startGateway(config.wsPort, hub, bus, integrations);

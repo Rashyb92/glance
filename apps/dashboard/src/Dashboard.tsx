@@ -12,6 +12,7 @@ import type {
   SessionState,
   TeamMember,
 } from '@glance/core';
+import { PLANS } from '@glance/core';
 import { useStats, type ConnectionStatus } from './useStats';
 import {
   connectSessionMany,
@@ -744,7 +745,7 @@ function AccountCard(): JSX.Element {
           disabled={busy}
           onClick={() => void go(() => startCheckout('creator'))}
         >
-          Upgrade · Creator
+          Creator · £{PLANS.creator.priceMonthlyGbp}/mo
         </button>
         <button
           type="button"
@@ -752,7 +753,7 @@ function AccountCard(): JSX.Element {
           disabled={busy}
           onClick={() => void go(() => startCheckout('pro'))}
         >
-          Pro
+          Pro · £{PLANS.pro.priceMonthlyGbp}/mo
         </button>
         <button
           type="button"

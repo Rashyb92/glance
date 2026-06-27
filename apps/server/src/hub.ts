@@ -27,6 +27,7 @@ import { kickViewers, twitchViewers, youtubeViewers } from './viewers';
 import { createTwitchClip } from './clip';
 import { logger } from './logger';
 import { metrics } from './metrics';
+import { MemberDenylist } from './member-denylist';
 
 interface Tenant {
   id: string;
@@ -75,6 +76,7 @@ export interface HubDeps {
 export class Hub {
   private readonly tenants = new Map<string, Tenant>();
   private readonly usage: UsageMeter;
+  private readonly denylist = new MemberDenylist();
 
   constructor(private readonly deps: HubDeps) {
     this.usage = deps.usage ?? new AiUsageMeter();
@@ -144,10 +146,18 @@ export class Hub {
   }
   removeMember(tenant: string, id: string): boolean | null {
     if (!this.deps.team || !PLANS[this.planId(tenant)].limits.teamManagement) return null;
+    this.denylist.revoke(tenant, id); // revoke their tokens immediately
     return this.deps.team.remove(tenant, id);
+  }
+  /** Force-logout a member (revoke their tokens) without removing them from the roster. */
+  revokeMember(tenant: string, memberId: string): boolean | null {
+    if (!this.deps.team || !PLANS[this.planId(tenant)].limits.teamManagement) return null;
+    this.denylist.revoke(tenant, memberId);
+    return true;
   }
   /** Is this member still on the tenant's roster? Revokes member tokens on removal. */
   memberActive(tenant: string, memberId: string): boolean {
+    if (this.denylist.isRevoked(tenant, memberId)) return false; // instant revocation
     return this.deps.team?.list(tenant).some((m) => m.id === memberId) ?? false;
   }
 

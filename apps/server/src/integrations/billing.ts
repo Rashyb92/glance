@@ -6,7 +6,8 @@ import type { PlanId } from '@glance/core';
  * pinned (a 2026 SaaS best practice) so Stripe-side changes can't silently break us.
  *
  * Requires STRIPE_SECRET_KEY and a price id per paid plan
- * (STRIPE_PRICE_CREATOR, STRIPE_PRICE_PRO).
+ * (STRIPE_PRICE_CREATOR, STRIPE_PRICE_PRO). Create those prices in GBP in Stripe
+ * (Creator £15/mo, Pro £39/mo) — the amount + currency live in Stripe, not here.
  */
 const STRIPE_API_VERSION = '2024-06-20';
 
