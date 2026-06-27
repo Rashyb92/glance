@@ -56,7 +56,15 @@ describe('pushNotificationFor', () => {
   it('ignores non-push messages and empty priorities', () => {
     const session: ServerMessage = {
       type: 'session',
-      data: { channel: null, demo: true, connected: false, platform: null, since: null, viewers: null },
+      data: {
+        channel: null,
+        demo: true,
+        connected: false,
+        platform: null,
+        since: null,
+        viewers: null,
+        channels: [],
+      },
     };
     expect(pushNotificationFor(session)).toBeNull();
     expect(pushNotificationFor({ type: 'priorities', data: [] })).toBeNull();

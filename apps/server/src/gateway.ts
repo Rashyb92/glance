@@ -2,6 +2,7 @@ import { createServer, type IncomingMessage, type ServerResponse } from 'node:ht
 import { WebSocketServer, WebSocket } from 'ws';
 import type {
   AnalyticsReport,
+  ChannelRef,
   EngineSettings,
   Platform,
   ScoredMessage,
@@ -28,6 +29,7 @@ export interface GatewayControl {
   getSnapshot: (tenant: string) => ScoredMessage[];
   getSession: (tenant: string) => SessionState;
   connect: (tenant: string, channel: string, demo: boolean, platform: Platform) => SessionState;
+  connectMany: (tenant: string, sources: ChannelRef[], demo: boolean) => SessionState;
   disconnect: (tenant: string) => SessionState;
   mark: (tenant: string) => Promise<{ clipUrl?: string }>;
   getSettings: (tenant: string) => EngineSettings;
@@ -285,9 +287,8 @@ function handleHttp(
     if (req.method === 'POST') {
       readJson(req)
         .then((body) => {
-          const channel = typeof body['channel'] === 'string' ? body['channel'] : '';
           const demo = body['demo'] !== false;
-          send(200, control.connect(tenant, channel, demo, connectPlatform(body['platform'])));
+          send(200, control.connectMany(tenant, parseChannels(body), demo));
         })
         .catch((err: Error) => send(err.message === 'too_large' ? 413 : 400, { error: err.message }));
       return;
@@ -414,6 +415,27 @@ function readJson(req: IncomingMessage): Promise<Record<string, unknown>> {
 /** Validate a connect request's platform (defaults to twitch). */
 function connectPlatform(value: unknown): Platform {
   return value === 'youtube' || value === 'kick' ? value : 'twitch';
+}
+
+/**
+ * Parse a connect body into source channels. Accepts either a `channels` array
+ * (unified multi-channel) or a single `channel` + `platform` (back-compat).
+ */
+export function parseChannels(body: Record<string, unknown>): ChannelRef[] {
+  const raw = body['channels'];
+  if (Array.isArray(raw)) {
+    const out: ChannelRef[] = [];
+    for (const item of raw) {
+      if (item && typeof item === 'object') {
+        const o = item as Record<string, unknown>;
+        const channel = typeof o['channel'] === 'string' ? o['channel'] : '';
+        if (channel.trim()) out.push({ platform: connectPlatform(o['platform']), channel });
+      }
+    }
+    return out;
+  }
+  const channel = typeof body['channel'] === 'string' ? body['channel'] : '';
+  return channel.trim() ? [{ platform: connectPlatform(body['platform']), channel }] : [];
 }
 
 /** Extract a named query param from a request URL. */

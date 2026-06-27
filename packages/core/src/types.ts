@@ -121,14 +121,25 @@ export interface PriorityCallout {
   source: 'ai' | 'rules';
 }
 
-/** The current live session — which channel Glance is listening to, and whether
+/** One linked source: a platform + channel pair. A session can run several at once
+ *  (unified multi-channel chat), all merged into a single salience feed. */
+export interface ChannelRef {
+  platform: Platform;
+  channel: string;
+}
+
+/** The current live session — which channel(s) Glance is listening to, and whether
  *  the source is connected. Broadcast to every client so the UI stays in sync. */
 export interface SessionState {
+  /** Primary channel (channels[0]) — retained for single-channel back-compat. */
   channel: string | null;
   demo: boolean;
   connected: boolean;
+  /** Primary platform. */
   platform: Platform | null;
   since: number | null;
-  /** Live concurrent viewers from the platform, or null if unknown. */
+  /** Live concurrent viewers, summed across all channels, or null if unknown. */
   viewers: number | null;
+  /** All live sources in this session — one when single-channel, many when merged. */
+  channels: ChannelRef[];
 }

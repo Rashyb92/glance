@@ -13,7 +13,7 @@ import type {
 } from '@glance/core';
 import { useStats, type ConnectionStatus } from './useStats';
 import {
-  connectSession,
+  connectSessionMany,
   disconnectSession,
   oauthStartUrl,
   openBillingPortal,
@@ -256,22 +256,31 @@ function PriorityCard({ priorities }: { priorities: PriorityCallout[] }): JSX.El
   );
 }
 
+type ConnectRow = { channel: string; platform: 'twitch' | 'youtube' | 'kick' };
+const MAX_CONNECT_ROWS = 3;
+
 function ConnectBar({ session }: { session: SessionState | null }): JSX.Element {
-  const [channel, setChannel] = useState('');
+  const [rows, setRows] = useState<ConnectRow[]>([{ channel: '', platform: 'twitch' }]);
   const [demo, setDemo] = useState(true);
-  const [platform, setPlatform] = useState<'twitch' | 'youtube' | 'kick'>('twitch');
   const [busy, setBusy] = useState(false);
 
-  // Seed the controls from the live session once it arrives.
+  // Seed the controls from the live session (and re-seed when its channel set changes).
+  const channelsKey = session?.channels.map((c) => `${c.platform}:${c.channel}`).join(',') ?? '';
   useEffect(() => {
     if (!session) return;
-    setChannel(session.channel ?? '');
     setDemo(session.demo);
-    if (session.platform && session.platform !== 'demo') setPlatform(session.platform);
-  }, [session?.channel, session?.demo, session?.platform]);
+    if (session.channels.length > 0) {
+      setRows(
+        session.channels.map((c) => ({
+          channel: c.channel,
+          platform: c.platform === 'demo' ? 'twitch' : c.platform,
+        })),
+      );
+    }
+  }, [channelsKey, session?.demo]);
 
-  const current = session?.channel ?? null;
   const connected = session?.connected ?? false;
+  const live = session?.channels ?? [];
 
   const run = async (fn: () => Promise<void>): Promise<void> => {
     setBusy(true);
@@ -281,44 +290,88 @@ function ConnectBar({ session }: { session: SessionState | null }): JSX.Element 
       setBusy(false);
     }
   };
+  const go = (): Promise<void> =>
+    connectSessionMany(
+      rows
+        .filter((r) => r.channel.trim())
+        .map((r) => ({ platform: r.platform, channel: r.channel.trim() })),
+      demo,
+    );
+  const setRow = (i: number, patch: Partial<ConnectRow>): void =>
+    setRows((rs) => rs.map((r, j) => (j === i ? { ...r, ...patch } : r)));
 
   return (
     <div className="connect">
-      <div className="connect-field">
-        <span className="connect-hash">#</span>
-        <input
-          className="connect-input"
-          value={channel}
-          spellCheck={false}
-          placeholder="twitch channel (e.g. xqc) — blank = demo only"
-          onChange={(e) => setChannel(e.target.value)}
-          onKeyDown={(e) => {
-            if (e.key === 'Enter') void run(() => connectSession(channel, demo, platform));
-          }}
-        />
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 6, flex: 1, minWidth: 240 }}>
+        {rows.map((row, i) => (
+          <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+            <span className="connect-hash">#</span>
+            <input
+              className="connect-input"
+              style={{ flex: 1 }}
+              value={row.channel}
+              spellCheck={false}
+              placeholder={i === 0 ? 'channel (e.g. xqc) — blank = demo only' : 'add another channel'}
+              onChange={(e) => setRow(i, { channel: e.target.value })}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') void run(go);
+              }}
+            />
+            <select
+              className="connect-platform"
+              value={row.platform}
+              aria-label="Platform"
+              onChange={(e) => setRow(i, { platform: e.target.value as ConnectRow['platform'] })}
+            >
+              <option value="twitch">Twitch</option>
+              <option value="youtube">YouTube</option>
+              <option value="kick">Kick</option>
+            </select>
+            {rows.length > 1 && (
+              <button
+                type="button"
+                aria-label="Remove channel"
+                onClick={() => setRows((rs) => rs.filter((_, j) => j !== i))}
+                style={{
+                  background: 'transparent',
+                  border: 'none',
+                  color: '#9a9aa6',
+                  cursor: 'pointer',
+                  fontSize: 18,
+                }}
+              >
+                ×
+              </button>
+            )}
+          </div>
+        ))}
+        {rows.length < MAX_CONNECT_ROWS && (
+          <button
+            type="button"
+            onClick={() => setRows((rs) => [...rs, { channel: '', platform: 'twitch' }])}
+            style={{
+              alignSelf: 'flex-start',
+              background: 'transparent',
+              border: '1px dashed #3a3a44',
+              color: '#b9b9c6',
+              borderRadius: 8,
+              padding: '4px 10px',
+              fontSize: 12,
+              cursor: 'pointer',
+            }}
+          >
+            + Add channel (simulcast)
+          </button>
+        )}
       </div>
-      <select
-        className="connect-platform"
-        value={platform}
-        aria-label="Platform"
-        onChange={(e) => setPlatform(e.target.value as 'twitch' | 'youtube' | 'kick')}
-      >
-        <option value="twitch">Twitch</option>
-        <option value="youtube">YouTube</option>
-        <option value="kick">Kick</option>
-      </select>
       <label className="connect-demo">
         <input type="checkbox" checked={demo} onChange={(e) => setDemo(e.target.checked)} />
         demo feed
       </label>
-      <button
-        className="connect-btn"
-        disabled={busy}
-        onClick={() => void run(() => connectSession(channel, demo, platform))}
-      >
-        {current ? 'Switch' : 'Connect'}
+      <button className="connect-btn" disabled={busy} onClick={() => void run(go)}>
+        {live.length > 0 ? 'Switch' : 'Connect'}
       </button>
-      {current && (
+      {live.length > 0 && (
         <button
           className="connect-btn ghost"
           disabled={busy}
@@ -328,10 +381,10 @@ function ConnectBar({ session }: { session: SessionState | null }): JSX.Element 
         </button>
       )}
       <span className={`connect-state ${connected ? 'on' : ''}`}>
-        {current
-          ? connected
-            ? `listening to #${current}`
-            : `connecting to #${current}…`
+        {live.length > 0
+          ? `${connected ? 'listening to' : 'connecting to'} ${live
+              .map((c) => `${c.platform}/${c.channel}`)
+              .join(' + ')}`
           : 'not connected'}
       </span>
     </div>

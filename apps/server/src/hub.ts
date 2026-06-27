@@ -4,6 +4,7 @@ import {
   isTeamRole,
   PLANS,
   type AnalyticsReport,
+  type ChannelRef,
   type EngineSettings,
   type Platform,
   type PlanId,
@@ -91,6 +92,14 @@ export class Hub {
   }
   connect(tenant: string, channel: string, demo: boolean, source: Platform = 'twitch'): SessionState {
     return this.tenant(tenant).controller.connect(channel, demo, source);
+  }
+  /**
+   * Connect several sources at once into one merged feed (unified multi-channel chat),
+   * clamped to the tenant's plan cap — this is where `maxConcurrentSessions` is enforced.
+   */
+  connectMany(tenant: string, sources: ChannelRef[], demo: boolean): SessionState {
+    const cap = Math.max(1, PLANS[this.planId(tenant)].limits.maxConcurrentSessions);
+    return this.tenant(tenant).controller.connectMany(sources.slice(0, cap), demo);
   }
   disconnect(tenant: string): SessionState {
     return this.tenant(tenant).controller.disconnect();

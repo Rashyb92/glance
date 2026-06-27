@@ -27,6 +27,18 @@ export async function connectSession(
   });
 }
 
+/** Connect several sources at once into one merged feed (unified multi-channel). */
+export async function connectSessionMany(
+  channels: Array<{ platform: 'twitch' | 'youtube' | 'kick'; channel: string }>,
+  demo: boolean,
+): Promise<void> {
+  await fetch(`${BASE}/api/session`, {
+    method: 'POST',
+    headers: headers({ 'content-type': 'application/json' }),
+    body: JSON.stringify({ channels, demo }),
+  });
+}
+
 export async function disconnectSession(): Promise<void> {
   await fetch(`${BASE}/api/session`, { method: 'DELETE', headers: headers() });
 }

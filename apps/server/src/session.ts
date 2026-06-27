@@ -2,6 +2,7 @@ import { randomUUID } from 'node:crypto';
 import { DEFAULT_ENGINE_SETTINGS, PaceGate, SessionRecorder, StatsAggregator } from '@glance/core';
 import type {
   ChannelEvent,
+  ChannelRef,
   ChatMessage,
   ChatSummary,
   EngineSettings,
@@ -58,6 +59,7 @@ export class SessionController {
     platform: null,
     since: null,
     viewers: null,
+    channels: [],
   };
   private broadcast: (message: ServerMessage) => void = () => {};
   private settings: EngineSettings = DEFAULT_ENGINE_SETTINGS;
@@ -90,19 +92,37 @@ export class SessionController {
   }
 
   connect(channel: string, demo: boolean, source: Platform = 'twitch'): SessionState {
+    return this.connectMany(channel.trim() ? [{ platform: source, channel }] : [], demo);
+  }
+
+  /**
+   * Connect one or more (platform, channel) sources into a single merged session.
+   * Every adapter feeds the same engine / stats / recorder, so several simultaneous
+   * streams — e.g. a simulcast to Twitch + YouTube + Kick — become one unified,
+   * salience-ranked chat. Falls back to the demo feed when no live source is given.
+   */
+  connectMany(sources: ChannelRef[], demo: boolean): SessionState {
     this.teardown();
-    let ch = channel.trim().replace(/^#/, '').toLowerCase();
-    // Validate per platform (Twitch logins are stricter than Kick/YouTube slugs);
-    // reject garbage rather than reconnect-looping on it.
-    const valid = source === 'twitch' ? /^[a-z0-9_]{3,25}$/ : /^[a-z0-9_.-]{1,60}$/;
-    if (ch && !valid.test(ch)) {
-      this.deps.log(`rejected invalid channel: ${ch.slice(0, 40)}`);
-      ch = '';
+
+    // Validate + normalize each requested source; build a live adapter per valid one.
+    // (Twitch logins are stricter than Kick/YouTube slugs; reject garbage rather than
+    // reconnect-loop on it.)
+    const live: Array<{ ref: ChannelRef; adapter: PlatformAdapter }> = [];
+    for (const src of sources) {
+      const ch = src.channel.trim().replace(/^#/, '').toLowerCase();
+      const valid = src.platform === 'twitch' ? /^[a-z0-9_]{3,25}$/ : /^[a-z0-9_.-]{1,60}$/;
+      if (!ch || !valid.test(ch)) {
+        if (src.channel.trim()) this.deps.log(`rejected invalid channel: ${src.channel.slice(0, 40)}`);
+        continue;
+      }
+      const adapter = this.buildAdapter(src.platform, ch);
+      if (adapter) live.push({ ref: { platform: src.platform, channel: ch }, adapter });
     }
-    // Pick the live adapter up-front so the session is labelled with the real source.
-    const live = ch ? this.buildAdapter(source, ch) : null;
-    const label = ch || 'demo';
-    const platform: Platform = live ? source : 'demo';
+
+    const channels = live.map((l) => l.ref);
+    const primary = channels[0] ?? null;
+    const label = primary?.channel ?? 'demo';
+    const platform: Platform = primary?.platform ?? 'demo';
 
     this.recorder = new SessionRecorder(
       // Time prefix keeps archives debuggable; crypto suffix makes IDs unguessable.
@@ -117,7 +137,7 @@ export class SessionController {
     this.pace = new PaceGate(this.settings.pace);
     this.engine = new GlanceEngine({
       channel: label,
-      broadcaster: ch || undefined,
+      broadcaster: primary?.channel ?? undefined,
       ai: this.deps.ai,
       keywords: this.settings.keywords,
       summaryIntervalMs: this.settings.summaryIntervalMs,
@@ -151,9 +171,10 @@ export class SessionController {
     this.viewerTimer = setInterval(() => void this.pollViewers(), 20000);
     void this.pollViewers();
 
-    this.adapters = [];
-    if (live) this.adapters.push(live);
-    if (demo || this.adapters.length === 0) this.adapters.push(new DemoAdapter(ch || 'glance_demo'));
+    this.adapters = live.map((l) => l.adapter);
+    if (demo || this.adapters.length === 0) {
+      this.adapters.push(new DemoAdapter(label === 'demo' ? 'glance_demo' : label));
+    }
     for (const adapter of this.adapters) {
       const handlers: AdapterHandlers = {
         onMessage: (m: ChatMessage) => this.engine?.ingestMessage(m),
@@ -167,7 +188,15 @@ export class SessionController {
       adapter.start(handlers);
     }
 
-    this.state = { channel: ch || null, demo, connected: false, platform, since: Date.now(), viewers: null };
+    this.state = {
+      channel: primary?.channel ?? null,
+      demo,
+      connected: false,
+      platform,
+      since: Date.now(),
+      viewers: null,
+      channels,
+    };
     metrics.inc('glance_sessions_started_total');
     this.broadcast({ type: 'session', data: this.state });
     return this.state;
@@ -182,6 +211,7 @@ export class SessionController {
       platform: null,
       since: null,
       viewers: null,
+      channels: [],
     };
     this.broadcast({ type: 'session', data: this.state });
     return this.state;
@@ -277,16 +307,20 @@ export class SessionController {
     }
   }
 
-  /** Poll the platform for the live viewer count and broadcast on change. */
+  /** Poll each platform for live viewer counts, summed across channels, broadcast on change. */
   private async pollViewers(): Promise<void> {
-    const { platform, channel, demo } = this.state;
+    const { channels, demo } = this.state;
     let viewers: number | null = null;
-    if (demo || !channel || !platform || platform === 'demo') {
+    if (demo || channels.length === 0) {
       // Simulated for the demo feed so dev shows a live-looking "watching" number.
       const chatters = this.stats?.snapshot().chatters ?? 5;
       viewers = Math.max(0, Math.round((chatters + 4) * 11 + (Math.random() - 0.5) * 24));
     } else if (this.deps.fetchViewers) {
-      viewers = await this.deps.fetchViewers(platform, channel);
+      const fetchViewers = this.deps.fetchViewers;
+      const counts = await Promise.all(channels.map((c) => fetchViewers(c.platform, c.channel)));
+      const known = counts.filter((n): n is number => n !== null);
+      // Sum the platforms that reported; null only when none did.
+      viewers = known.length > 0 ? known.reduce((a, b) => a + b, 0) : null;
     }
     if (viewers !== this.state.viewers) {
       this.state = { ...this.state, viewers };

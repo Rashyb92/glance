@@ -422,6 +422,9 @@ function MessageRow({ scored, dim }: { scored: ScoredMessage; dim: boolean }): J
         <span className="author" style={message.color ? { color: message.color } : undefined}>
           {message.author}
         </span>
+        <span style={{ fontSize: 10, textTransform: 'uppercase', letterSpacing: 0.5, opacity: 0.45 }}>
+          {message.platform}
+        </span>
         <Chip tone={meta.tone}>
           <span className="chip-glyph">{meta.glyph}</span>
           {meta.label}
