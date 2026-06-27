@@ -64,9 +64,13 @@ export class PgKvStore implements KvStore {
   }
 
   async list(prefix: string): Promise<Array<{ key: string; value: string }>> {
+    // Escape LIKE metacharacters so a prefix containing `_` or `%` can't widen the match
+    // into another tenant's keys. Tenant ids are sanitized to [A-Za-z0-9_-], but `_` is a
+    // single-char LIKE wildcard, so `sess:team_a:` would otherwise also match `sess:teamXa:`.
+    const escaped = prefix.replace(/([\\%_])/g, '\\$1');
     const r = await this.sql.query<{ key: string; value: string }>(
-      `SELECT key, value FROM ${this.table} WHERE key LIKE $1`,
-      [`${prefix}%`],
+      `SELECT key, value FROM ${this.table} WHERE key LIKE $1 ESCAPE '\\'`,
+      [`${escaped}%`],
     );
     return r.rows;
   }

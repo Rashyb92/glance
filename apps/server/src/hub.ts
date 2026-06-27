@@ -20,6 +20,7 @@ import { SessionController } from './session';
 import { SettingsService, type SettingsStore } from './settings-store';
 import type { Storage } from './storage';
 import type { Bus } from './bus';
+import type { KvStore } from './kv';
 import { AiUsageMeter, type UsageMeter } from './ai-usage';
 import type { TeamStore } from './team-store';
 import type { PushStore, PushSubscription } from './push-store';
@@ -55,11 +56,13 @@ export interface HubDeps {
     clientId: string;
     hasToken: (tenant: string) => boolean;
     getToken: (tenant: string) => Promise<string | null>;
+    hydrate?: (tenant: string) => Promise<void>;
   };
   /** When set, tenants with a linked YouTube token read live chat via the API. */
   youtubeLink?: {
     hasToken: (tenant: string) => boolean;
     getToken: (tenant: string) => Promise<string | null>;
+    hydrate?: (tenant: string) => Promise<void>;
   };
   /** Team roster store (gated to plans with `teamManagement`). */
   team?: TeamStore;
@@ -67,6 +70,9 @@ export interface HubDeps {
   push?: PushStore;
   /** AI usage meter — defaults to in-memory; pass a RedisUsageMeter for multi-instance. */
   usage?: UsageMeter;
+  /** Durable KV (Postgres). When set, the Hub warms each tenant's stores on load and persists
+   *  member revocations so a force-logout survives a restart / tenant migration. */
+  kv?: KvStore;
 }
 
 /**
@@ -78,10 +84,11 @@ export interface HubDeps {
 export class Hub {
   private readonly tenants = new Map<string, Tenant>();
   private readonly usage: UsageMeter;
-  private readonly denylist = new MemberDenylist();
+  private readonly denylist: MemberDenylist;
 
   constructor(private readonly deps: HubDeps) {
     this.usage = deps.usage ?? new AiUsageMeter();
+    this.denylist = new MemberDenylist(deps.kv);
     metrics.gauge('glance_tenants', () => this.tenants.size);
   }
 
@@ -148,12 +155,17 @@ export class Hub {
   }
   removeMember(tenant: string, id: string): boolean | null {
     if (!this.deps.team || !PLANS[this.planId(tenant)].limits.teamManagement) return null;
-    this.denylist.revoke(tenant, id); // revoke their tokens immediately
-    return this.deps.team.remove(tenant, id);
+    const removed = this.deps.team.remove(tenant, id);
+    // Revoke tokens only once the member is really gone — avoids seeding the denylist
+    // with arbitrary ids (which would otherwise accumulate forever).
+    if (removed) this.denylist.revoke(tenant, id);
+    return removed;
   }
   /** Force-logout a member (revoke their tokens) without removing them from the roster. */
   revokeMember(tenant: string, memberId: string): boolean | null {
     if (!this.deps.team || !PLANS[this.planId(tenant)].limits.teamManagement) return null;
+    // Only revoke someone actually on the roster — a missing id is a 404, not a silent ok.
+    if (!this.deps.team.list(tenant).some((m) => m.id === memberId)) return false;
     this.denylist.revoke(tenant, memberId);
     return true;
   }
@@ -270,13 +282,23 @@ export class Hub {
     });
     controller.setBroadcast((message) => this.deps.bus.publish(id, message));
     controller.applySettings(applyPlanLimits(settings.get(), this.planId(id)));
-    // Warm settings *and* the plan from the durable store (Postgres) without blocking tenant
-    // creation. Awaiting both before re-clamping closes a cold-start race: on a fresh instance
-    // a paid tenant's plan reads as the default until hydrated, so we re-apply limits only once
-    // the real plan is known. onChange applies plan limits + broadcasts.
+    // Warm settings, plan, roster, tokens, push devices, and the revocation list from the durable
+    // store (Postgres) without blocking tenant creation. Awaiting them before re-clamping closes the
+    // cold-start window on a fresh instance: a paid tenant must not be served at default limits, a
+    // real team roster must not be overwritten by an empty one (invite), an authenticated reader must
+    // not fall back to IRC when a token exists, and a force-logout must not be forgotten. Only runs
+    // when durable stores are configured. onChange applies plan limits + broadcasts.
     const entitlements = this.deps.entitlements;
-    if (settingsStore.hydrate || entitlements?.hydrate) {
-      void Promise.all([settingsStore.hydrate?.(), entitlements?.hydrate?.(id)])
+    if (this.deps.kv) {
+      void Promise.all([
+        settingsStore.hydrate?.(),
+        entitlements?.hydrate?.(id),
+        this.deps.team?.hydrate(id),
+        this.deps.push?.hydrate(id),
+        this.deps.twitchLink?.hydrate?.(id),
+        this.deps.youtubeLink?.hydrate?.(id),
+        this.denylist.hydrate(id),
+      ])
         .then(([loaded]) => {
           if (loaded) {
             settings.rehydrate(loaded);

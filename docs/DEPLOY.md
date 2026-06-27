@@ -127,8 +127,15 @@ Neon free → ~$19/mo · Upstash free → pay-per-use · Fly ~$2–5/mo per smal
 
 All durable + multi-instance paths are now wired (each gated on config; without it, the local/in-process fallback is used):
 
-- **Postgres-backed stores (done).** *All* per-tenant state — settings, session archives, OAuth tokens, teams, push devices, and entitlements — is durable in Postgres when `DATABASE_URL` + `pg` are configured, via one `glance_kv` table behind a synchronous write-through cache (`KvCache` / `KvStorage`) warmed on tenant load. A tenant's plan is eagerly warmed before its limits are applied, so a paid tenant is never briefly clamped to free limits on a cold instance.
+- **Postgres-backed stores (done).** *All* per-tenant state — settings, session archives, OAuth tokens, teams, push devices, and entitlements — is durable in Postgres when `DATABASE_URL` + `pg` are configured, via one `glance_kv` table behind a synchronous write-through cache (`KvCache` / `KvStorage`) warmed on tenant load. On tenant load a fresh instance eagerly warms the plan, roster, OAuth tokens, push devices, and the member-revocation list, closing the cold-start gaps (a paid tenant clamped to free limits, an empty roster overwriting a real one on invite, an authenticated reader falling back to IRC, a forgotten force-logout). Member revocations persist with a 30-day TTL so a force-logout survives an instance restart, and write-through failures are logged rather than silently dropped.
 - **Multi-instance bus + AI usage meter (done).** When `REDIS_URL` is set, the broadcast bus and the fleet-wide AI cost meter switch to Redis (optional `redis` driver); the per-IP rate limiter stays per-instance by design.
 - **Web Push delivery (done).** `WebPushProvider` (VAPID + RFC 8291 payload encryption) + a `push` handler in the companion service worker — real background delivery to the phone companion / wearables.
 - **Native push (done).** APNs (HTTP/2 + ES256) and FCM v1 (service-account) behind the same `PushProvider` seam, config-gated on `APNS_*` / `FCM_*`, composed by a `RoutingPushProvider`.
 - **Remaining (deploy config, not code):** tenant-sticky routing at the load balancer so each creator's session + sockets land on one instance (the shard helpers in `apps/server/src/sharding.ts` compute ownership).
+
+### Known limits (documented; safe under tenant-sticky routing)
+
+- **Revocation across *non-sticky* instances.** Revocations persist to Postgres and re-hydrate on tenant load, so they survive restarts/migration. If you run a non-sticky LB (one tenant's members spread across instances), also broadcast revokes over the Bus so every instance revokes instantly.
+- **Idle-tenant eviction.** `Hub.tenants` keeps a tenant resident for the process lifetime after first touch; add an idle sweep if one instance fans in very many tenants.
+- **Push SSRF is literal-IP only.** `isSafePushEndpoint` blocks private/loopback/metadata literals; a hostname that *resolves* to a private IP isn't blocked — use an egress allowlist/proxy in production for the webhook/webpush sender.
+- **Per-tenant session cap.** Resident (and persisted) archives are capped at 1000/tenant (`MAX_RESIDENT_SESSIONS`) on top of age-based retention — far above any real tenant; raise it if needed.

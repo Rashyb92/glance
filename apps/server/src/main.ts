@@ -103,6 +103,7 @@ function tokenAccessor(provider: ProviderId) {
         return tok.accessToken; // use the stale token; the adapter surfaces failures
       }
     },
+    hydrate: (tenant: string): Promise<void> => tokens.hydrate(tenant, provider),
   };
 }
 
@@ -195,6 +196,7 @@ const hub = new Hub({
   // Enforce real plans only when billing is configured; dev/self-host stays ungated.
   entitlements: process.env['STRIPE_SECRET_KEY'] ? entitlements : undefined,
   usage: usageMeter,
+  kv,
 });
 
 const gateway = startGateway(config.wsPort, hub, bus, integrations);

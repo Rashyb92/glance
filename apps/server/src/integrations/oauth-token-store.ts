@@ -66,6 +66,12 @@ export class TokenStore {
     }
   }
 
+  /** Warm a (tenant, provider) token from the durable store so a fresh instance picks the
+   *  authenticated reader (EventSub / YouTube) instead of falling back to IRC/demo. No-op for files. */
+  async hydrate(tenant: string, provider: ProviderId): Promise<void> {
+    if (this.cache) await this.cache.hydrate(this.keyFor(tenant, provider));
+  }
+
   private safe(tenant: string): string {
     return tenant.replace(/[^a-zA-Z0-9_-]/g, '') || 'default';
   }

@@ -1,5 +1,6 @@
 import { readFileSync } from 'node:fs';
 import type { KvStore } from './kv';
+import { logger } from './logger';
 
 /** Read a file as utf8, or null if it doesn't exist / can't be read (the file-store branch). */
 export function readFileOrNull(file: string): string | null {
@@ -58,12 +59,28 @@ export class KvCache {
   write(key: string, value: string): void {
     this.cache.set(key, value);
     this.hydrated.add(key);
-    void this.kv.put(key, value).catch(() => undefined);
+    // A swallowed failure here means the cache says "saved" but Postgres never got it —
+    // log it so the data loss is observable/alertable rather than silent.
+    void this.kv
+      .put(key, value)
+      .catch((err) =>
+        logger.error('kv write-through failed — cached value not persisted', {
+          key,
+          error: err instanceof Error ? err.message : String(err),
+        }),
+      );
   }
 
   remove(key: string): void {
     this.cache.delete(key);
     this.hydrated.add(key);
-    void this.kv.delete(key).catch(() => undefined);
+    void this.kv
+      .delete(key)
+      .catch((err) =>
+        logger.error('kv delete write-through failed', {
+          key,
+          error: err instanceof Error ? err.message : String(err),
+        }),
+      );
   }
 }

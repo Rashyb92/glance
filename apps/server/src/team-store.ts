@@ -25,6 +25,12 @@ export class TeamStore {
     return this.read(tenant);
   }
 
+  /** Warm a tenant's roster from the durable store before any read-modify-write (e.g. invite),
+   *  so a fresh instance can't overwrite the real roster with a cold (empty) one. No-op for files. */
+  async hydrate(tenant: string): Promise<void> {
+    if (this.cache) await this.cache.hydrate(`team:${this.safe(tenant)}`);
+  }
+
   invite(
     tenant: string,
     email: string,

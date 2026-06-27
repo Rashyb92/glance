@@ -35,6 +35,11 @@ export class PushStore {
     return this.read(tenant);
   }
 
+  /** Warm a tenant's device list from the durable store on tenant load. No-op for files. */
+  async hydrate(tenant: string): Promise<void> {
+    if (this.cache) await this.cache.hydrate(`push:${this.safe(tenant)}`);
+  }
+
   subscribe(
     tenant: string,
     platform: string,

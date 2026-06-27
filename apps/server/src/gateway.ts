@@ -391,7 +391,9 @@ function handleHttp(
       if (!canManageTeam(actor.role)) return send(403, { error: 'admins only' });
       const memberId = decodeURIComponent(rest.slice(0, -'/revoke'.length));
       const ok = control.revokeMember(tenant, memberId);
-      return send(ok === null ? 403 : 200, ok === null ? { error: 'not on your plan' } : { ok });
+      if (ok === null) return send(403, { error: 'not on your plan' });
+      if (!ok) return send(404, { error: 'member not found' });
+      return send(200, { ok: true });
     }
     if (req.method === 'DELETE') {
       if (!canManageTeam(actor.role)) return send(403, { error: 'admins only' });

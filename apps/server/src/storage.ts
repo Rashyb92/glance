@@ -2,6 +2,7 @@ import { mkdirSync, readFileSync, readdirSync, renameSync, rmSync, writeFileSync
 import { join } from 'node:path';
 import type { SessionDetail, SessionSummary } from '@glance/core';
 import type { KvStore } from './kv';
+import { logger } from './logger';
 
 /** Persistence seam for archived sessions. Swap for SQLite/Postgres at scale. */
 export interface Storage {
@@ -116,8 +117,12 @@ export class FileStorage implements Storage {
  * timeline of events/donations/markers, not every message), so resident caching of a
  * tenant's archives stays within a few MB even at the retention cap.
  *
- * One instance is scoped to a single tenant via `prefix` (e.g. `sess:<tenant>:`).
+ * One instance is scoped to a single tenant via `prefix` (e.g. `sess:<tenant>:`). Resident
+ * (and persisted) archives are capped per tenant ({@link MAX_RESIDENT_SESSIONS}) on top of
+ * age-based retention, so memory + storage stay bounded even for a high-volume tenant.
  */
+const MAX_RESIDENT_SESSIONS = 1000;
+
 export class KvStorage implements Storage {
   private readonly cache = new Map<string, SessionDetail>();
 
@@ -147,7 +152,12 @@ export class KvStorage implements Storage {
 
   saveSession(detail: SessionDetail): void {
     this.cache.set(detail.id, detail);
-    void this.kv.put(this.keyFor(detail.id), JSON.stringify(detail)).catch(() => undefined);
+    void this.kv
+      .put(this.keyFor(detail.id), JSON.stringify(detail))
+      .catch((err) =>
+        logger.error('session write-through failed', { id: detail.id, error: String(err) }),
+      );
+    if (this.cache.size > MAX_RESIDENT_SESSIONS) this.evictOldest();
   }
 
   getSession(id: string): SessionDetail | null {
@@ -156,7 +166,20 @@ export class KvStorage implements Storage {
 
   deleteSession(id: string): void {
     this.cache.delete(id);
-    void this.kv.delete(this.keyFor(id)).catch(() => undefined);
+    void this.kv
+      .delete(this.keyFor(id))
+      .catch((err) =>
+        logger.error('session delete write-through failed', { id, error: String(err) }),
+      );
+  }
+
+  /** Evict the oldest archive (cache + store) when a tenant exceeds the resident cap. */
+  private evictOldest(): void {
+    let oldest: SessionDetail | undefined;
+    for (const detail of this.cache.values()) {
+      if (!oldest || detail.startedAt < oldest.startedAt) oldest = detail;
+    }
+    if (oldest) this.deleteSession(oldest.id);
   }
 
   listSessions(limit = 50): SessionSummary[] {
