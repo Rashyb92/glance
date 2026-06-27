@@ -8,6 +8,7 @@ import type {
   ServerMessage,
   SessionState,
 } from '@glance/core';
+import { getToken } from './auth';
 
 export type ConnectionStatus = 'connecting' | 'online' | 'offline';
 
@@ -21,16 +22,16 @@ export interface DashState {
   priorities: PriorityCallout[];
 }
 
-// VITE_GLANCE_TOKEN selects the tenant (absent → the server's `default` tenant).
-const WS_TOKEN = import.meta.env['VITE_GLANCE_TOKEN'] as string | undefined;
-function withToken(url: string): string {
-  if (!WS_TOKEN) return url;
-  return `${url}${url.includes('?') ? '&' : '?'}token=${encodeURIComponent(WS_TOKEN)}`;
-}
-const WS_URL = withToken(
+// The WS base; the tenant token is appended at connect time (runtime login token, with the
+// build-time VITE_GLANCE_TOKEN as a dev fallback) — never baked into the production bundle.
+const WS_BASE =
   (import.meta.env['VITE_GLANCE_WS_URL'] as string | undefined) ??
-    `ws://localhost:${(import.meta.env['VITE_GLANCE_WS'] as string | undefined) ?? '8787'}`,
-);
+  `ws://localhost:${(import.meta.env['VITE_GLANCE_WS'] as string | undefined) ?? '8787'}`;
+function wsUrl(): string {
+  const token = getToken();
+  if (!token) return WS_BASE;
+  return `${WS_BASE}${WS_BASE.includes('?') ? '&' : '?'}token=${encodeURIComponent(token)}`;
+}
 
 /** Subscribes to the gateway and exposes the latest stats, AI summary, session
  *  state, engine settings, AI priorities and a small ticker of high-salience messages. */
@@ -50,7 +51,7 @@ export function useStats(): DashState {
 
     const connect = (): void => {
       setStatus((s) => (s === 'online' ? s : 'connecting'));
-      const ws = new WebSocket(WS_URL);
+      const ws = new WebSocket(wsUrl());
       wsRef.current = ws;
       ws.onopen = () => setStatus('online');
       ws.onerror = () => ws.close();

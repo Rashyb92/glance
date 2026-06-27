@@ -5,19 +5,15 @@ import type {
   SessionSummary,
   TeamMember,
 } from '@glance/core';
+import { API_BASE as BASE, getToken } from './auth';
 
 // Control-plane + replay calls to the Glance server. Live state (session/settings)
 // is echoed back over the WebSocket, so the mutating helpers ignore the body.
-// Deploy-configurable: set VITE_GLANCE_API_URL to a full https:// URL in production.
-const BASE =
-  (import.meta.env['VITE_GLANCE_API_URL'] as string | undefined) ??
-  `http://localhost:${(import.meta.env['VITE_GLANCE_WS'] as string | undefined) ?? '8787'}`;
-
-// VITE_GLANCE_TOKEN selects the tenant (absent → the server's `default` tenant).
-const TOKEN = import.meta.env['VITE_GLANCE_TOKEN'] as string | undefined;
+// BASE + the runtime session token come from ./auth (set VITE_GLANCE_API_URL in production).
 function headers(extra?: Record<string, string>): Record<string, string> {
   const h: Record<string, string> = { ...extra };
-  if (TOKEN) h['authorization'] = `Bearer ${TOKEN}`;
+  const token = getToken();
+  if (token) h['authorization'] = `Bearer ${token}`;
   return h;
 }
 
@@ -82,7 +78,8 @@ export async function getAnalytics(): Promise<AnalyticsReport | null> {
 
 /** URL the browser navigates to in order to link a streaming account (GET redirect flow). */
 export function oauthStartUrl(provider: 'twitch' | 'youtube' | 'kick'): string {
-  const q = TOKEN ? `?token=${encodeURIComponent(TOKEN)}` : '';
+  const token = getToken();
+  const q = token ? `?token=${encodeURIComponent(token)}` : '';
   return `${BASE}/api/oauth/${provider}/start${q}`;
 }
 
