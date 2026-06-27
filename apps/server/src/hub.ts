@@ -245,7 +245,8 @@ export class Hub {
           }
         : undefined,
     });
-    const settings = new SettingsService(this.deps.makeSettingsStore(id), (next) => {
+    const settingsStore = this.deps.makeSettingsStore(id);
+    const settings = new SettingsService(settingsStore, (next) => {
       // Enforce the plan: clients and the engine only ever see clamped settings.
       const effective = applyPlanLimits(next, this.planId(id));
       controller.applySettings(effective);
@@ -253,6 +254,13 @@ export class Hub {
     });
     controller.setBroadcast((message) => this.deps.bus.publish(id, message));
     controller.applySettings(applyPlanLimits(settings.get(), this.planId(id)));
+    // Warm settings from the durable store (Postgres) without blocking tenant creation;
+    // when it returns, push them live — onChange applies plan limits + broadcasts.
+    if (settingsStore.hydrate) {
+      void settingsStore.hydrate().then((loaded) => {
+        if (loaded) settings.rehydrate(loaded);
+      });
+    }
 
     // Apply retention the moment a tenant loads, so idle data ages out on next use.
     const retentionDays = settings.get().retentionDays;

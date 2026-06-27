@@ -2,11 +2,14 @@ import { mkdirSync, readFileSync, renameSync, writeFileSync } from 'node:fs';
 import { dirname } from 'node:path';
 import { DEFAULT_ENGINE_SETTINGS, normalizeEngineSettings } from '@glance/core';
 import type { EngineSettings } from '@glance/core';
+import type { KvStore } from './kv';
 
-/** Persistence seam for engine settings. Swapped for a DB-backed store in M3. */
+/** Persistence seam for engine settings. File-backed for dev; KV/Postgres at scale. */
 export interface SettingsStore {
   load(): EngineSettings;
   save(settings: EngineSettings): void;
+  /** Optional async warm-up from a durable backing store (e.g. Postgres). */
+  hydrate?(): Promise<EngineSettings | null>;
 }
 
 /** JSON-file store with atomic writes (write-temp-then-rename) and safe fallback. */
@@ -29,6 +32,43 @@ export class FileSettingsStore implements SettingsStore {
   }
 }
 
+/**
+ * KV-backed settings with a synchronous write-through cache. `load()` returns the
+ * cached value (defaults until {@link hydrate} completes); `save()` updates the cache
+ * and writes through to the KV store. Backed by `MemoryKvStore` in tests and `PgKvStore`
+ * in production, this is what points settings at Postgres for multi-instance deploys —
+ * with tenant-sticky routing each tenant lives on one instance, so its cache is the
+ * source of truth and the eventual-consistency window is only the first cold load.
+ */
+export class KvSettingsStore implements SettingsStore {
+  private cache: EngineSettings = { ...DEFAULT_ENGINE_SETTINGS };
+
+  constructor(
+    private readonly kv: KvStore,
+    private readonly key: string,
+  ) {}
+
+  load(): EngineSettings {
+    return this.cache;
+  }
+
+  save(settings: EngineSettings): void {
+    this.cache = settings;
+    void this.kv.put(this.key, JSON.stringify(settings)).catch(() => undefined);
+  }
+
+  async hydrate(): Promise<EngineSettings | null> {
+    try {
+      const raw = await this.kv.get(this.key);
+      if (raw === null) return null;
+      this.cache = normalizeEngineSettings(JSON.parse(raw));
+      return this.cache;
+    } catch {
+      return null; // DB unreachable / corrupt → keep the cached defaults
+    }
+  }
+}
+
 export type SettingsListener = (settings: EngineSettings) => void;
 
 /**
@@ -48,6 +88,12 @@ export class SettingsService {
 
   get(): EngineSettings {
     return this.current;
+  }
+
+  /** Replace the live settings from an async backing load (Postgres warm-up) and notify. */
+  rehydrate(settings: EngineSettings): void {
+    this.current = settings;
+    this.onChange(this.current);
   }
 
   update(patch: unknown): EngineSettings {

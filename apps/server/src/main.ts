@@ -5,8 +5,10 @@ import { loadConfig } from './config';
 import { startGateway } from './gateway';
 import { Hub } from './hub';
 import { InProcessBus } from './bus';
-import { FileSettingsStore } from './settings-store';
+import { FileSettingsStore, KvSettingsStore } from './settings-store';
 import { FileStorage } from './storage';
+import { PgKvStore, type KvStore } from './kv';
+import { createPgClient } from './pg-client';
 import { OAuthService } from './integrations/oauth-service';
 import { TokenStore } from './integrations/oauth-token-store';
 import type { ProviderId } from './integrations/oauth-providers';
@@ -109,12 +111,29 @@ const twitchLink = twitchClientId
   : undefined;
 const youtubeLink = process.env['YOUTUBE_CLIENT_ID'] ? tokenAccessor('youtube') : undefined;
 
+// Durable settings store: Postgres (shared across instances) when DATABASE_URL is set,
+// otherwise the file store. `pg` is an optional dependency, loaded only on this path.
+const databaseUrl = process.env['DATABASE_URL'];
+let settingsKv: KvStore | null = null;
+if (databaseUrl) {
+  try {
+    settingsKv = new PgKvStore(createPgClient(databaseUrl));
+    logger.info('settings store: Postgres (multi-instance)');
+  } catch (err) {
+    logger.warn('DATABASE_URL is set but pg is unavailable — using file settings', {
+      error: err instanceof Error ? err.message : String(err),
+    });
+  }
+}
+
 const hub = new Hub({
   ai,
   bus,
   makeStorage: (tenant) => new FileStorage(resolve(repoRoot, '.data', 'sessions', safeTenant(tenant))),
   makeSettingsStore: (tenant) =>
-    new FileSettingsStore(resolve(repoRoot, '.data', 'settings', `${safeTenant(tenant)}.json`)),
+    settingsKv
+      ? new KvSettingsStore(settingsKv, `settings:${safeTenant(tenant)}`)
+      : new FileSettingsStore(resolve(repoRoot, '.data', 'settings', `${safeTenant(tenant)}.json`)),
   twitchLink,
   youtubeLink,
   team,

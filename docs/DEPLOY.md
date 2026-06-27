@@ -77,7 +77,7 @@ Create a Neon project, copy the connection string into `fly secrets set DATABASE
 CREATE TABLE IF NOT EXISTS glance_kv (key text PRIMARY KEY, value text NOT NULL);
 ```
 
-`PgKvStore` (`apps/server/src/kv.ts`) already targets this table. Wiring the per-tenant stores onto it is the one remaining code change (see **What's left to wire**).
+Add the driver with `pnpm add pg`, set `DATABASE_URL`, and **engine settings are read/written through Postgres** automatically (`KvSettingsStore` — a write-through cache warmed on tenant load). `pg` is optional: without `DATABASE_URL` the file store is used, and a missing driver falls back with a warning. Session archives + OAuth tokens still use the file/volume store and follow the same pattern next (see **What's left to wire**).
 
 ## 4 · Redis (Upstash)
 
@@ -125,6 +125,6 @@ Neon free → ~$19/mo · Upstash free → pay-per-use · Fly ~$2–5/mo per smal
 
 ## What's left to wire
 
-- **Async Postgres stores.** The session/settings stores are synchronous (file-backed); backing them with async Postgres needs an async refactor of the store interfaces + the Hub. `PgKvStore` and the SQL client already exist — this is the switch that flips file → Postgres for true horizontal durability.
+- **Postgres-backed stores.** Engine **settings** are now durable in Postgres (`KvSettingsStore` write-through cache + async warm-up on tenant load) when `DATABASE_URL` + `pg` are configured. Session archives and OAuth tokens still use the file/volume store; they follow the same write-through KV pattern next.
 - **Web Push delivery.** The `PushProvider` seam + device registry are in place; a `WebPushProvider` (VAPID + RFC 8291 payload encryption) plus a `push` handler in the companion service worker turns the documented push path into real background delivery.
 - **Native push (later).** APNs/FCM for a native iOS/Android shell, behind the same `PushProvider` seam.
