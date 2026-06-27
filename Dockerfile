@@ -1,35 +1,28 @@
 # Glance server (gateway) container image.
 #
-# The front-ends (apps/hud, apps/dashboard) deploy as static `vite build` output
-# on a CDN/static host; this image runs the WebSocket + control-plane server.
+# The front-ends (apps/hud, apps/dashboard, apps/companion) deploy as static
+# `vite build` output on a CDN/static host (see docs/DEPLOY.md); this image runs the
+# stateful WebSocket + REST server and Hub.
 #
-# Starting image — runs via tsx. For a leaner production image, add a compile step
-# (tsx/tsup → JS) and a multi-stage prune; tracked in the deploy milestone.
+# The workspace packages export their TypeScript source directly, so the server runs
+# via tsx with no compile step. tsx is a root dev dependency needed at runtime, so the
+# full dependency set is installed (NODE_ENV is set to production only AFTER install,
+# otherwise pnpm prunes the devDependencies tsx lives in).
 FROM node:24-alpine
 
-RUN corepack enable
+RUN corepack enable && corepack prepare pnpm@9.15.0 --activate
 WORKDIR /app
 
-# Install workspace deps first (cached on lockfile changes).
-COPY pnpm-lock.yaml pnpm-workspace.yaml package.json ./
-COPY packages/core/package.json ./packages/core/package.json
-COPY packages/ai/package.json ./packages/ai/package.json
-COPY packages/platforms/package.json ./packages/platforms/package.json
-COPY apps/server/package.json ./apps/server/package.json
-COPY apps/hud/package.json ./apps/hud/package.json
-COPY apps/dashboard/package.json ./apps/dashboard/package.json
+# Copy the whole workspace (node_modules / .data / .git are excluded via
+# .dockerignore) so pnpm can resolve every workspace package the lockfile pins.
+COPY . .
 RUN pnpm install --frozen-lockfile
-
-# Source needed to run the server.
-COPY tsconfig.base.json ./
-COPY packages ./packages
-COPY apps/server ./apps/server
 
 ENV NODE_ENV=production
 ENV GLANCE_WS_PORT=8787
 EXPOSE 8787
 
-HEALTHCHECK --interval=30s --timeout=3s --start-period=5s \
+HEALTHCHECK --interval=30s --timeout=3s --start-period=10s \
   CMD wget -qO- "http://localhost:${GLANCE_WS_PORT}/health" || exit 1
 
 CMD ["pnpm", "--filter", "@glance/server", "start"]

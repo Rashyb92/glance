@@ -1,0 +1,43 @@
+# Fly.io deployment for the Glance server (stateful WebSocket + REST gateway).
+# The front-ends (HUD / dashboard / companion) deploy separately to a static host
+# such as Cloudflare Pages — see docs/DEPLOY.md.
+app = "glance-server"
+primary_region = "lhr" # London; change to your nearest Fly region.
+
+[build]
+  dockerfile = "Dockerfile"
+
+[env]
+  NODE_ENV = "production"
+  GLANCE_WS_PORT = "8787"
+  # All secrets are set with `fly secrets set` (see docs/DEPLOY.md): GLANCE_AUTH_SECRET,
+  # ANTHROPIC_API_KEY, STRIPE_SECRET_KEY/STRIPE_WEBHOOK_SECRET, TWITCH_/YOUTUBE_/KICK_
+  # client id+secret, GLANCE_PUBLIC_URL, GLANCE_DASHBOARD_URL, GLANCE_ALLOWED_ORIGINS,
+  # and later DATABASE_URL, REDIS_URL, VAPID_PUBLIC_KEY/VAPID_PRIVATE_KEY/VAPID_SUBJECT.
+
+[http_service]
+  internal_port = 8787
+  force_https = true
+  # A live session holds long WebSocket connections, so do not scale to zero while
+  # creators are connected; keep at least one machine warm.
+  auto_stop_machines = "off"
+  auto_start_machines = true
+  min_machines_running = 1
+  [http_service.concurrency]
+    type = "connections"
+    soft_limit = 400
+    hard_limit = 500
+
+[[http_service.checks]]
+  method = "GET"
+  path = "/health"
+  interval = "15s"
+  timeout = "2s"
+  grace_period = "10s"
+
+# Persistent disk for the file-backed stores — gives single-instance durability across
+# redeploys. Remove this once the per-tenant stores point at Postgres (Neon), since a
+# Fly volume is bound to one machine and can't be shared across instances.
+[mounts]
+  source = "glance_data"
+  destination = "/app/.data"

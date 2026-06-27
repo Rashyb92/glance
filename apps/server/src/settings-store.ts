@@ -57,6 +57,7 @@ export class SettingsService {
     const merged: Record<string, unknown> = { ...this.current };
     const keys: (keyof EngineSettings)[] = [
       'surfaceThreshold',
+      'pace',
       'keywords',
       'summaryIntervalMs',
       'routing',
