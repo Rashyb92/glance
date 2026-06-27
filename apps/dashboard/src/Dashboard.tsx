@@ -619,11 +619,12 @@ function TuningCard({ settings }: { settings: EngineSettings | null }): JSX.Elem
               <span>see</span>
               <span>hear</span>
               <span>chime</span>
+              <span>feel</span>
             </div>
             {ROUTABLE.map((cat) => (
               <div className="routing-row" key={cat}>
                 <span className="routing-cat">{cat}</span>
-                {(['display', 'voice', 'earcon'] as const).map((ch) => (
+                {(['display', 'voice', 'earcon', 'haptic'] as const).map((ch) => (
                   <input
                     key={ch}
                     type="checkbox"

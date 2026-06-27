@@ -927,7 +927,7 @@ body {
 .routing-head,
 .routing-row {
   display: grid;
-  grid-template-columns: 1fr 44px 44px 44px;
+  grid-template-columns: 1fr 44px 44px 44px 44px;
   align-items: center;
   gap: 4px;
 }

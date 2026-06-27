@@ -23,7 +23,7 @@ export interface PlanLimits {
   aiCallsPerDay: number;
   /** Claude priority re-ranking ("priority callouts"). */
   aiPriorities: boolean;
-  /** Voice / earcon output routing (vs display-only). */
+  /** Non-display output routing — voice, earcon, and haptic (vs display-only). */
   audioRouting: boolean;
   /** Link more than one streaming platform at once. */
   multiPlatform: boolean;

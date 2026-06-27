@@ -10,6 +10,7 @@ import type {
 import { useGlanceFeed, type ConnectionStatus } from './useGlanceFeed';
 import { useOverlaySettings, type OverlaySettings } from './useOverlaySettings';
 import { earcon, speak } from './audio';
+import { haptic } from './haptics';
 import { useBattery, type BatteryState } from './useBattery';
 import { parseVoiceCommand } from '@glance/core';
 import { useVoice, type Voice } from './useVoice';
@@ -109,6 +110,24 @@ export function App(): JSX.Element {
       setHeard((h) => [e.event.summary, ...h].slice(0, 8));
     }
   }, [events, overlay.audio, overlay.volume, settings]);
+
+  // Haptics: feel high-signal moments per the routing matrix — independent of the audio
+  // toggle, so a creator muted on stream can still feel a donation land. No-ops on devices
+  // without the Vibration API (desktop, iOS Safari).
+  const lastHapticPriorityId = useRef<string | null>(null);
+  useEffect(() => {
+    const p = priorities[0];
+    if (!p || p.id === lastHapticPriorityId.current) return;
+    lastHapticPriorityId.current = p.id;
+    if ((settings?.routing?.[p.category] ?? []).includes('haptic')) haptic(p.category);
+  }, [priorities, settings]);
+  const lastHapticEventId = useRef<string | null>(null);
+  useEffect(() => {
+    const e = events[0];
+    if (!e || e.event.id === lastHapticEventId.current) return;
+    lastHapticEventId.current = e.event.id;
+    if ((settings?.routing?.event ?? []).includes('haptic')) haptic('event');
+  }, [events, settings]);
 
   const handleTranscript = (text: string): void => {
     const res = parseVoiceCommand(text, {

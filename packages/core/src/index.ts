@@ -16,3 +16,4 @@ export * from './push';
 export * from './eval';
 export * from './voice';
 export * from './pace';
+export * from './haptics';

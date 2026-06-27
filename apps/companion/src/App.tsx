@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import { parseVoiceCommand } from '@glance/core';
 import { useFeed } from './useFeed';
 import { earcon, speak } from './audio';
+import { haptic } from './haptics';
 import { useVoice } from './useVoice';
 import { markMoment, subscribePush } from './api';
 
@@ -59,6 +60,7 @@ export function App(): JSX.Element {
       speak(line, volume, true);
       setHeard((h) => [line, ...h].slice(0, 10));
     }
+    if (channels.includes('haptic')) haptic(p.category); // feel it — independent of the sound toggle
     if (notify && document.hidden) notification('Worth answering', `${p.author ?? 'chat'}: ${p.text}`);
   }, [priorities, audio, volume, settings, notify]);
 
@@ -73,6 +75,7 @@ export function App(): JSX.Element {
       speak(e.event.summary, volume);
       setHeard((h) => [e.event.summary, ...h].slice(0, 10));
     }
+    if (channels.includes('haptic')) haptic('event');
     if (notify && document.hidden) notification('Channel event', e.event.summary);
   }, [events, audio, volume, settings, notify]);
 

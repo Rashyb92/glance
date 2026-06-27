@@ -6,14 +6,14 @@ import { isChatPace, type ChatPace } from './pace';
  *
  * The server-owned, per-channel tuning knobs that change WHAT gets surfaced, how
  * often the AI speaks, and — via the routing matrix — which output channel each
- * kind of moment reaches (see vs hear). Persisted by the server and broadcast to
- * every client.
+ * kind of moment reaches (see, hear, or feel). Persisted by the server and broadcast
+ * to every client.
  *
  * `normalizeEngineSettings` is the single validation boundary: all external input
  * (HTTP bodies, settings files) passes through it, so the rest of the system can
  * trust that an `EngineSettings` is always well-formed and within safe bounds.
  */
-export type OutputChannel = 'display' | 'voice' | 'earcon';
+export type OutputChannel = 'display' | 'voice' | 'earcon' | 'haptic';
 
 /** Per-category output routing — which channels each salience category reaches. */
 export type RoutingMatrix = Partial<Record<SalienceCategory, OutputChannel[]>>;
@@ -64,14 +64,14 @@ const ROUTABLE_CATEGORIES: SalienceCategory[] = [
   'highlight',
   'chatter',
 ];
-const OUTPUT_CHANNELS: OutputChannel[] = ['display', 'voice', 'earcon'];
+const OUTPUT_CHANNELS: OutputChannel[] = ['display', 'voice', 'earcon', 'haptic'];
 
 export const DEFAULT_ROUTING: RoutingMatrix = {
-  donation: ['display', 'voice', 'earcon'],
-  event: ['display', 'voice', 'earcon'],
+  donation: ['display', 'voice', 'earcon', 'haptic'],
+  event: ['display', 'voice', 'earcon', 'haptic'],
   question: ['display', 'voice'],
   mention: ['display', 'voice'],
-  moderation: ['display', 'earcon'],
+  moderation: ['display', 'earcon', 'haptic'],
   trend: ['display'],
   highlight: ['display'],
   chatter: [],
