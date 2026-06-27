@@ -13,6 +13,7 @@
     "@glance/ai": "workspace:*",
     "@glance/core": "workspace:*",
     "@glance/platforms": "workspace:*",
+    "tsx": "^4.19.2",
     "ws": "^8.18.0"
   },
   "optionalDependencies": {
