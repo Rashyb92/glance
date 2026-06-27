@@ -1,7 +1,9 @@
-import { mkdirSync, readFileSync, renameSync, writeFileSync } from 'node:fs';
+import { mkdirSync, renameSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { randomUUID } from 'node:crypto';
 import { isTeamRole, type TeamMember, type TeamRole } from '@glance/core';
+import { KvCache, readFileOrNull } from './kv-cache';
+import type { KvStore } from './kv';
 
 /**
  * Per-tenant team roster (one JSON file per tenant). Enforces a valid email, a
@@ -9,8 +11,14 @@ import { isTeamRole, type TeamMember, type TeamRole } from '@glance/core';
  * is implicit and not stored, so `seatLimit` bounds the number of invited members.
  */
 export class TeamStore {
-  constructor(private readonly dir: string) {
+  private readonly cache?: KvCache;
+
+  constructor(
+    private readonly dir: string,
+    kv?: KvStore,
+  ) {
     mkdirSync(dir, { recursive: true });
+    if (kv) this.cache = new KvCache(kv);
   }
 
   list(tenant: string): TeamMember[] {
@@ -50,8 +58,10 @@ export class TeamStore {
   }
 
   private read(tenant: string): TeamMember[] {
+    const raw = this.cache ? this.cache.read(`team:${this.safe(tenant)}`) : readFileOrNull(this.fileFor(tenant));
+    if (!raw) return [];
     try {
-      const parsed: unknown = JSON.parse(readFileSync(this.fileFor(tenant), 'utf8'));
+      const parsed: unknown = JSON.parse(raw);
       return Array.isArray(parsed) ? (parsed as TeamMember[]) : [];
     } catch {
       return [];
@@ -59,10 +69,18 @@ export class TeamStore {
   }
 
   private write(tenant: string, members: TeamMember[]): void {
+    if (this.cache) {
+      this.cache.write(`team:${this.safe(tenant)}`, JSON.stringify(members));
+      return;
+    }
     const file = this.fileFor(tenant);
     const tmp = `${file}.tmp`;
     writeFileSync(tmp, JSON.stringify(members), 'utf8');
     renameSync(tmp, file);
+  }
+
+  private safe(tenant: string): string {
+    return tenant.replace(/[^a-zA-Z0-9_-]/g, '') || 'default';
   }
 
   private fileFor(tenant: string): string {

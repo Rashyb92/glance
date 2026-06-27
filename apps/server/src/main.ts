@@ -6,7 +6,7 @@ import { startGateway } from './gateway';
 import { Hub } from './hub';
 import { InProcessBus, type Bus } from './bus';
 import { FileSettingsStore, KvSettingsStore } from './settings-store';
-import { FileStorage } from './storage';
+import { FileStorage, KvStorage } from './storage';
 import { PgKvStore, type KvStore } from './kv';
 import { createPgClient } from './pg-client';
 import { OAuthService } from './integrations/oauth-service';
@@ -46,13 +46,31 @@ function safeTenant(tenant: string): string {
   return tenant.replace(/[^a-zA-Z0-9_-]/g, '').slice(0, 64) || 'default';
 }
 
-const tokens = new TokenStore(resolve(repoRoot, '.data', 'tokens'));
+// Durable, multi-instance stores: when DATABASE_URL is set, every per-tenant store
+// (settings, sessions, OAuth tokens, teams, push devices, entitlements) persists to one
+// Postgres KV store; otherwise each falls back to its local file store. `pg` is an
+// optional dependency, loaded only on this path. Each store keeps a sync cache-aside view
+// (see KvCache / KvStorage) so the rest of the codebase is unchanged.
+const databaseUrl = process.env['DATABASE_URL'];
+let kv: KvStore | undefined;
+if (databaseUrl) {
+  try {
+    kv = new PgKvStore(createPgClient(databaseUrl));
+    logger.info('durable stores: Postgres (settings, sessions, tokens, teams, push, entitlements)');
+  } catch (err) {
+    logger.warn('DATABASE_URL is set but pg is unavailable — using local file stores', {
+      error: err instanceof Error ? err.message : String(err),
+    });
+  }
+}
+
+const tokens = new TokenStore(resolve(repoRoot, '.data', 'tokens'), kv);
 const oauth = new OAuthService(
   process.env['GLANCE_PUBLIC_URL'] ?? `http://localhost:${config.wsPort}`,
 );
 
 const dashboardUrl = process.env['GLANCE_DASHBOARD_URL'] ?? 'http://localhost:5174';
-const entitlements = new EntitlementStore(resolve(repoRoot, '.data', 'entitlements'));
+const entitlements = new EntitlementStore(resolve(repoRoot, '.data', 'entitlements'), kv);
 const billing = new BillingService(
   process.env['STRIPE_SECRET_KEY'],
   `${dashboardUrl}?billing=success`,
@@ -105,8 +123,8 @@ if (redisUrl) {
     });
   }
 }
-const team = new TeamStore(resolve(repoRoot, '.data', 'teams'));
-const push = new PushStore(resolve(repoRoot, '.data', 'push'));
+const team = new TeamStore(resolve(repoRoot, '.data', 'teams'), kv);
+const push = new PushStore(resolve(repoRoot, '.data', 'push'), kv);
 
 // Push the highest-signal moments (priority callouts, channel events) to each tenant's
 // registered devices — the wearables / phone-companion render target.
@@ -159,28 +177,16 @@ const twitchLink = twitchClientId
   : undefined;
 const youtubeLink = process.env['YOUTUBE_CLIENT_ID'] ? tokenAccessor('youtube') : undefined;
 
-// Durable settings store: Postgres (shared across instances) when DATABASE_URL is set,
-// otherwise the file store. `pg` is an optional dependency, loaded only on this path.
-const databaseUrl = process.env['DATABASE_URL'];
-let settingsKv: KvStore | null = null;
-if (databaseUrl) {
-  try {
-    settingsKv = new PgKvStore(createPgClient(databaseUrl));
-    logger.info('settings store: Postgres (multi-instance)');
-  } catch (err) {
-    logger.warn('DATABASE_URL is set but pg is unavailable — using file settings', {
-      error: err instanceof Error ? err.message : String(err),
-    });
-  }
-}
-
 const hub = new Hub({
   ai,
   bus,
-  makeStorage: (tenant) => new FileStorage(resolve(repoRoot, '.data', 'sessions', safeTenant(tenant))),
+  makeStorage: (tenant) =>
+    kv
+      ? new KvStorage(kv, `sess:${safeTenant(tenant)}:`)
+      : new FileStorage(resolve(repoRoot, '.data', 'sessions', safeTenant(tenant))),
   makeSettingsStore: (tenant) =>
-    settingsKv
-      ? new KvSettingsStore(settingsKv, `settings:${safeTenant(tenant)}`)
+    kv
+      ? new KvSettingsStore(kv, `settings:${safeTenant(tenant)}`)
       : new FileSettingsStore(resolve(repoRoot, '.data', 'settings', `${safeTenant(tenant)}.json`)),
   twitchLink,
   youtubeLink,

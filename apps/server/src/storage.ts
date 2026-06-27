@@ -1,6 +1,7 @@
 import { mkdirSync, readFileSync, readdirSync, renameSync, rmSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import type { SessionDetail, SessionSummary } from '@glance/core';
+import type { KvStore } from './kv';
 
 /** Persistence seam for archived sessions. Swap for SQLite/Postgres at scale. */
 export interface Storage {
@@ -104,6 +105,95 @@ export class FileStorage implements Storage {
 
   private fileFor(id: string): string {
     return join(this.dir, `${id.replace(/[^a-zA-Z0-9_-]/g, '')}.json`);
+  }
+}
+
+/**
+ * KV-backed session archive (Postgres for durable, multi-instance history). Cache-aside:
+ * a tenant's archives are hydrated into memory once on construction and every write is
+ * write-through, so the synchronous {@link Storage} interface is preserved while the data
+ * lives in Postgres. A {@link SessionDetail} is small and bounded (capped moments; a
+ * timeline of events/donations/markers, not every message), so resident caching of a
+ * tenant's archives stays within a few MB even at the retention cap.
+ *
+ * One instance is scoped to a single tenant via `prefix` (e.g. `sess:<tenant>:`).
+ */
+export class KvStorage implements Storage {
+  private readonly cache = new Map<string, SessionDetail>();
+
+  constructor(
+    private readonly kv: KvStore,
+    private readonly prefix: string,
+  ) {
+    void this.hydrate();
+  }
+
+  /** Load this tenant's archives into memory once, on construction. */
+  private async hydrate(): Promise<void> {
+    try {
+      for (const row of await this.kv.list(this.prefix)) {
+        try {
+          const detail = JSON.parse(row.value) as SessionDetail;
+          // Don't clobber a write that landed while the list() was in flight.
+          if (!this.cache.has(detail.id)) this.cache.set(detail.id, detail);
+        } catch {
+          /* skip a corrupt record rather than failing the whole hydrate */
+        }
+      }
+    } catch {
+      /* store unavailable — start empty; write-through still persists new archives */
+    }
+  }
+
+  saveSession(detail: SessionDetail): void {
+    this.cache.set(detail.id, detail);
+    void this.kv.put(this.keyFor(detail.id), JSON.stringify(detail)).catch(() => undefined);
+  }
+
+  getSession(id: string): SessionDetail | null {
+    return this.cache.get(id) ?? null;
+  }
+
+  deleteSession(id: string): void {
+    this.cache.delete(id);
+    void this.kv.delete(this.keyFor(id)).catch(() => undefined);
+  }
+
+  listSessions(limit = 50): SessionSummary[] {
+    return [...this.cache.values()]
+      .map(toSummary)
+      .sort((a, b) => b.startedAt - a.startedAt)
+      .slice(0, limit);
+  }
+
+  exportAll(): SessionDetail[] {
+    return [...this.cache.values()].sort((a, b) => b.startedAt - a.startedAt);
+  }
+
+  pruneOlderThan(cutoffMs: number): number {
+    let removed = 0;
+    for (const detail of [...this.cache.values()]) {
+      if (detail.startedAt < cutoffMs) {
+        this.deleteSession(detail.id);
+        removed += 1;
+      }
+    }
+    return removed;
+  }
+
+  deleteByChannel(channel: string): number {
+    let removed = 0;
+    for (const detail of [...this.cache.values()]) {
+      if (detail.channel === channel) {
+        this.deleteSession(detail.id);
+        removed += 1;
+      }
+    }
+    return removed;
+  }
+
+  private keyFor(id: string): string {
+    return `${this.prefix}${id.replace(/[^a-zA-Z0-9_-]/g, '')}`;
   }
 }
 

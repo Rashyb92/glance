@@ -77,7 +77,7 @@ Create a Neon project, copy the connection string into `fly secrets set DATABASE
 CREATE TABLE IF NOT EXISTS glance_kv (key text PRIMARY KEY, value text NOT NULL);
 ```
 
-Add the driver with `pnpm add pg`, set `DATABASE_URL`, and **engine settings are read/written through Postgres** automatically (`KvSettingsStore` — a write-through cache warmed on tenant load). `pg` is optional: without `DATABASE_URL` the file store is used, and a missing driver falls back with a warning. Session archives + OAuth tokens still use the file/volume store and follow the same pattern next (see **What's left to wire**).
+Add the driver with `pnpm add pg`, set `DATABASE_URL`, and **every per-tenant store is read/written through Postgres** automatically: settings, session archives, OAuth tokens, teams, push devices, and entitlements all share one `glance_kv` table behind a synchronous write-through cache warmed on tenant load (`KvCache` / `KvStorage` / `KvSettingsStore`). `pg` is optional: without `DATABASE_URL` the local file stores are used, and a missing driver falls back with a warning.
 
 ## 4 · Redis (Upstash)
 
@@ -116,15 +116,19 @@ node -e "const c=require('crypto');const{publicKey,privateKey}=c.generateKeyPair
 ## Scaling: single → multi-instance
 
 1. **Start (single instance):** keep the Fly volume; the file stores under `/app/.data` are durable across redeploys. Good for a pilot.
-2. **Grow (multi-instance):** point the per-tenant stores at Postgres (drop the volume), set `REDIS_URL` and swap the in-process bus for `RedisBus`, then `fly scale count 3`. Put tenant-sticky routing in front so each creator's session + sockets land on one instance (consistent-hash on the token; the shard helpers compute ownership). Autoscale on connection count.
+2. **Grow (multi-instance):** set `DATABASE_URL` (all per-tenant stores move to Postgres — drop the volume) and `REDIS_URL` (the bus + AI usage meter switch to Redis automatically), then `fly scale count 3`. Put tenant-sticky routing in front so each creator's session + sockets land on one instance (consistent-hash on the token; the shard helpers compute ownership). Autoscale on connection count.
 3. **Global:** add Fly regions close to your creators; Redis + Postgres stay regional (or use read replicas).
 
 ## Cost ballpark (early)
 
 Neon free → ~$19/mo · Upstash free → pay-per-use · Fly ~$2–5/mo per small machine · Cloudflare Pages free. **~$0–25/mo to start**, scaling with usage — versus $100–300+/mo of baseline for the AWS-enterprise equivalent.
 
-## What's left to wire
+## Wiring status
 
-- **Postgres-backed stores.** Engine **settings** are now durable in Postgres (`KvSettingsStore` write-through cache + async warm-up on tenant load) when `DATABASE_URL` + `pg` are configured. Session archives and OAuth tokens still use the file/volume store; they follow the same write-through KV pattern next.
-- **Web Push delivery.** The `PushProvider` seam + device registry are in place; a `WebPushProvider` (VAPID + RFC 8291 payload encryption) plus a `push` handler in the companion service worker turns the documented push path into real background delivery.
-- **Native push (later).** APNs/FCM for a native iOS/Android shell, behind the same `PushProvider` seam.
+All durable + multi-instance paths are now wired (each gated on config; without it, the local/in-process fallback is used):
+
+- **Postgres-backed stores (done).** *All* per-tenant state — settings, session archives, OAuth tokens, teams, push devices, and entitlements — is durable in Postgres when `DATABASE_URL` + `pg` are configured, via one `glance_kv` table behind a synchronous write-through cache (`KvCache` / `KvStorage`) warmed on tenant load. A tenant's plan is eagerly warmed before its limits are applied, so a paid tenant is never briefly clamped to free limits on a cold instance.
+- **Multi-instance bus + AI usage meter (done).** When `REDIS_URL` is set, the broadcast bus and the fleet-wide AI cost meter switch to Redis (optional `redis` driver); the per-IP rate limiter stays per-instance by design.
+- **Web Push delivery (done).** `WebPushProvider` (VAPID + RFC 8291 payload encryption) + a `push` handler in the companion service worker — real background delivery to the phone companion / wearables.
+- **Native push (done).** APNs (HTTP/2 + ES256) and FCM v1 (service-account) behind the same `PushProvider` seam, config-gated on `APNS_*` / `FCM_*`, composed by a `RoutingPushProvider`.
+- **Remaining (deploy config, not code):** tenant-sticky routing at the load balancer so each creator's session + sockets land on one instance (the shard helpers in `apps/server/src/sharding.ts` compute ownership).

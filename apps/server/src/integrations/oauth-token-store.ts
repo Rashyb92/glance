@@ -1,8 +1,10 @@
-import { mkdirSync, readFileSync, renameSync, writeFileSync } from 'node:fs';
+import { mkdirSync, renameSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { decryptSecret, encryptSecret } from './oauth-crypto';
 import type { ProviderId } from './oauth-providers';
 import type { OAuthTokens } from './oauth-service';
+import { KvCache, readFileOrNull } from '../kv-cache';
+import type { KvStore } from '../kv';
 
 interface StoredTokens {
   accessToken: string; // encrypted
@@ -17,8 +19,14 @@ interface StoredTokens {
  * the session archive layout.
  */
 export class TokenStore {
-  constructor(private readonly dir: string) {
+  private readonly cache?: KvCache;
+
+  constructor(
+    private readonly dir: string,
+    kv?: KvStore,
+  ) {
     mkdirSync(dir, { recursive: true });
+    if (kv) this.cache = new KvCache(kv);
   }
 
   save(tenant: string, provider: ProviderId, tokens: OAuthTokens): void {
@@ -29,15 +37,24 @@ export class TokenStore {
     if (tokens.refreshToken) payload.refreshToken = encryptSecret(tokens.refreshToken);
     if (tokens.scope) payload.scope = tokens.scope;
 
+    const json = JSON.stringify(payload);
+    if (this.cache) {
+      this.cache.write(this.keyFor(tenant, provider), json);
+      return;
+    }
     const file = this.fileFor(tenant, provider);
     const tmp = `${file}.tmp`;
-    writeFileSync(tmp, JSON.stringify(payload), 'utf8');
+    writeFileSync(tmp, json, 'utf8');
     renameSync(tmp, file);
   }
 
   load(tenant: string, provider: ProviderId): OAuthTokens | null {
+    const rawStr = this.cache
+      ? this.cache.read(this.keyFor(tenant, provider))
+      : readFileOrNull(this.fileFor(tenant, provider));
+    if (!rawStr) return null;
     try {
-      const raw = JSON.parse(readFileSync(this.fileFor(tenant, provider), 'utf8')) as StoredTokens;
+      const raw = JSON.parse(rawStr) as StoredTokens;
       return {
         accessToken: decryptSecret(raw.accessToken),
         refreshToken: raw.refreshToken ? decryptSecret(raw.refreshToken) : undefined,
@@ -49,8 +66,15 @@ export class TokenStore {
     }
   }
 
+  private safe(tenant: string): string {
+    return tenant.replace(/[^a-zA-Z0-9_-]/g, '') || 'default';
+  }
+
+  private keyFor(tenant: string, provider: ProviderId): string {
+    return `tok:${this.safe(tenant)}:${provider}`;
+  }
+
   private fileFor(tenant: string, provider: ProviderId): string {
-    const safe = tenant.replace(/[^a-zA-Z0-9_-]/g, '') || 'default';
-    return join(this.dir, `${safe}.${provider}.json`);
+    return join(this.dir, `${this.safe(tenant)}.${provider}.json`);
   }
 }

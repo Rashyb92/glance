@@ -40,6 +40,8 @@ interface Tenant {
  *  billing is wired the Hub defaults to `pro` (self-host / dev runs ungated). */
 export interface EntitlementResolver {
   getPlan(tenant: string): PlanId;
+  /** Optionally warm a tenant's plan from a durable store before its limits are applied. */
+  hydrate?(tenant: string): Promise<void>;
 }
 
 export interface HubDeps {
@@ -268,13 +270,21 @@ export class Hub {
     });
     controller.setBroadcast((message) => this.deps.bus.publish(id, message));
     controller.applySettings(applyPlanLimits(settings.get(), this.planId(id)));
-    // Warm settings from the durable store (Postgres) without blocking tenant creation;
-    // when it returns, push them live — onChange applies plan limits + broadcasts.
-    if (settingsStore.hydrate) {
-      void settingsStore
-        .hydrate()
-        .then((loaded) => {
-          if (loaded) settings.rehydrate(loaded);
+    // Warm settings *and* the plan from the durable store (Postgres) without blocking tenant
+    // creation. Awaiting both before re-clamping closes a cold-start race: on a fresh instance
+    // a paid tenant's plan reads as the default until hydrated, so we re-apply limits only once
+    // the real plan is known. onChange applies plan limits + broadcasts.
+    const entitlements = this.deps.entitlements;
+    if (settingsStore.hydrate || entitlements?.hydrate) {
+      void Promise.all([settingsStore.hydrate?.(), entitlements?.hydrate?.(id)])
+        .then(([loaded]) => {
+          if (loaded) {
+            settings.rehydrate(loaded);
+          } else {
+            const effective = applyPlanLimits(settings.get(), this.planId(id));
+            controller.applySettings(effective);
+            this.deps.bus.publish(id, { type: 'settings', data: effective });
+          }
         })
         .catch(() => undefined);
     }

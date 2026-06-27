@@ -1,6 +1,8 @@
-import { mkdirSync, readFileSync, renameSync, writeFileSync } from 'node:fs';
+import { mkdirSync, renameSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { randomUUID } from 'node:crypto';
+import { KvCache, readFileOrNull } from './kv-cache';
+import type { KvStore } from './kv';
 
 export type PushPlatform = 'apns' | 'fcm' | 'webhook' | 'webpush';
 
@@ -19,8 +21,14 @@ export interface PushSubscription {
  * device count; one JSON file per tenant keeps tenants isolated on disk.
  */
 export class PushStore {
-  constructor(private readonly dir: string) {
+  private readonly cache?: KvCache;
+
+  constructor(
+    private readonly dir: string,
+    kv?: KvStore,
+  ) {
     mkdirSync(dir, { recursive: true });
+    if (kv) this.cache = new KvCache(kv);
   }
 
   list(tenant: string): PushSubscription[] {
@@ -69,18 +77,27 @@ export class PushStore {
   }
 
   private read(tenant: string): PushSubscription[] {
+    const raw = this.cache ? this.cache.read(`push:${this.safe(tenant)}`) : readFileOrNull(this.fileFor(tenant));
+    if (!raw) return [];
     try {
-      const parsed: unknown = JSON.parse(readFileSync(this.fileFor(tenant), 'utf8'));
+      const parsed: unknown = JSON.parse(raw);
       return Array.isArray(parsed) ? (parsed as PushSubscription[]) : [];
     } catch {
       return [];
     }
   }
   private write(tenant: string, subs: PushSubscription[]): void {
+    if (this.cache) {
+      this.cache.write(`push:${this.safe(tenant)}`, JSON.stringify(subs));
+      return;
+    }
     const file = this.fileFor(tenant);
     const tmp = `${file}.tmp`;
     writeFileSync(tmp, JSON.stringify(subs), 'utf8');
     renameSync(tmp, file);
+  }
+  private safe(tenant: string): string {
+    return tenant.replace(/[^a-zA-Z0-9_-]/g, '') || 'default';
   }
   private fileFor(tenant: string): string {
     const safe = tenant.replace(/[^a-zA-Z0-9_-]/g, '') || 'default';
