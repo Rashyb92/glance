@@ -15,6 +15,7 @@ import type { ProviderId } from './integrations/oauth-providers';
 import { BillingService } from './integrations/billing';
 import { EntitlementStore } from './integrations/entitlement-store';
 import { AccountStore, AuthService } from './accounts';
+import { SessionStore } from './session-store';
 import { OAuthStateStore, type IntegrationDeps } from './integrations/routes';
 import { TeamStore } from './team-store';
 import { PushStore, type PushPlatform } from './push-store';
@@ -79,8 +80,9 @@ const billing = new BillingService(
 );
 // Self-serve account auth (signup/login/refresh) issues runtime session tokens; OAuth `state`
 // is Postgres-backed so a provider callback can complete on any instance.
+const sessionStore = new SessionStore(kv);
 const accounts = new AccountStore(kv);
-const auth = new AuthService(accounts, process.env['GLANCE_AUTH_SECRET']);
+const auth = new AuthService(accounts, process.env['GLANCE_AUTH_SECRET'], sessionStore);
 const oauthState = new OAuthStateStore(600_000, kv);
 
 // OAuth + billing + auth routes mounted on the gateway. Each fails soft until its keys exist.
@@ -206,6 +208,7 @@ const hub = new Hub({
   entitlements: process.env['STRIPE_SECRET_KEY'] ? entitlements : undefined,
   usage: usageMeter,
   kv,
+  sessions: sessionStore,
 });
 
 const gateway = startGateway(config.wsPort, hub, bus, integrations);

@@ -44,6 +44,7 @@ beforeAll(() => {
     removeMember: () => true,
     revokeMember: () => true,
     memberActive: () => true,
+    sessionActive: () => true,
     listPush: () => [],
     subscribePush: () => ({ error: 'nope' }),
     removePush: () => true,

@@ -37,6 +37,22 @@ export function clearToken(): void {
   }
 }
 
+/** Revoke this session server-side (best-effort), then clear the local token. */
+export async function logout(): Promise<void> {
+  const token = getToken();
+  if (token) {
+    try {
+      await fetch(`${API_BASE}/api/auth/logout`, {
+        method: 'POST',
+        headers: { authorization: `Bearer ${token}` },
+      });
+    } catch {
+      /* best effort — clear locally regardless */
+    }
+  }
+  clearToken();
+}
+
 /** Any usable token (runtime login OR dev fallback) — gates the dashboard vs the login screen. */
 export function hasSession(): boolean {
   return Boolean(getToken());

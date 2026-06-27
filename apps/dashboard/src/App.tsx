@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { Dashboard } from './Dashboard';
 import { LoginGate } from './LoginGate';
-import { clearToken, hasLoginSession, hasSession } from './auth';
+import { hasLoginSession, hasSession, logout } from './auth';
 
 /**
  * Auth gate: shows the login screen until there's a usable session token, then the dashboard.
@@ -19,10 +19,7 @@ export function App(): JSX.Element {
         <button
           className="signout"
           type="button"
-          onClick={() => {
-            clearToken();
-            setAuthed(false);
-          }}
+          onClick={() => void logout().then(() => setAuthed(false))}
         >
           Sign out
         </button>

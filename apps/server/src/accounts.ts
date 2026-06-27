@@ -1,7 +1,8 @@
 import { createHash, randomBytes, randomUUID, scrypt as scryptCb, timingSafeEqual } from 'node:crypto';
 import { promisify } from 'node:util';
-import { signToken } from './auth';
+import { signSessionToken } from './auth';
 import type { KvStore } from './kv';
+import type { SessionStore } from './session-store';
 
 /**
  * Self-serve account identity — the layer that turns Glance from "provisioned tenant tokens"
@@ -100,6 +101,7 @@ export class AuthService {
   constructor(
     private readonly accounts: AccountStore,
     private readonly secret: string | undefined,
+    private readonly sessions?: SessionStore,
     private readonly sessionTtlSeconds = 7 * 24 * 3600,
   ) {}
 
@@ -138,10 +140,22 @@ export class AuthService {
     return this.issue(tenant);
   }
 
+  /** Log out a single session (the one making the request). */
+  logout(tenant: string, sessionId: string): void {
+    this.sessions?.revoke(tenant, sessionId);
+  }
+
+  /** Sign out everywhere — revoke every session for the account (stolen-token kill switch). */
+  revokeAll(tenant: string): void {
+    this.sessions?.revokeAll(tenant);
+  }
+
   private issue(tenant: string): AuthSession {
     if (!this.secret) return { token: tenant, tenant, expiresAt: 0 }; // dev mode: token == tenant key
     return {
-      token: signToken(tenant, this.secret, { ttlSeconds: this.sessionTtlSeconds }),
+      token: signSessionToken(tenant, randomUUID(), this.secret, {
+        ttlSeconds: this.sessionTtlSeconds,
+      }),
       tenant,
       expiresAt: Math.floor(Date.now() / 1000) + this.sessionTtlSeconds,
     };

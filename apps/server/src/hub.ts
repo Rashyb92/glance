@@ -29,6 +29,7 @@ import { createTwitchClip } from './clip';
 import { logger } from './logger';
 import { metrics } from './metrics';
 import { MemberDenylist } from './member-denylist';
+import { SessionStore } from './session-store';
 
 interface Tenant {
   id: string;
@@ -73,6 +74,9 @@ export interface HubDeps {
   /** Durable KV (Postgres). When set, the Hub warms each tenant's stores on load and persists
    *  member revocations so a force-logout survives a restart / tenant migration. */
   kv?: KvStore;
+  /** Owner-session revocation store — share the same instance with the AuthService so logout /
+   *  revoke-all and the gateway's session check operate on one state. Defaults to one from `kv`. */
+  sessions?: SessionStore;
 }
 
 /**
@@ -85,10 +89,12 @@ export class Hub {
   private readonly tenants = new Map<string, Tenant>();
   private readonly usage: UsageMeter;
   private readonly denylist: MemberDenylist;
+  private readonly sessions: SessionStore;
 
   constructor(private readonly deps: HubDeps) {
     this.usage = deps.usage ?? new AiUsageMeter();
     this.denylist = new MemberDenylist(deps.kv);
+    this.sessions = deps.sessions ?? new SessionStore(deps.kv);
     metrics.gauge('glance_tenants', () => this.tenants.size);
   }
 
@@ -173,6 +179,21 @@ export class Hub {
   memberActive(tenant: string, memberId: string): boolean {
     if (this.denylist.isRevoked(tenant, memberId)) return false; // instant revocation
     return this.deps.team?.list(tenant).some((m) => m.id === memberId) ?? false;
+  }
+
+  /** Is this owner session token still valid (not logged out, not revoked-all)? */
+  sessionActive(tenant: string, sessionId: string, issuedAt: number): boolean {
+    return this.sessions.isActive(tenant, sessionId, issuedAt);
+  }
+
+  /** Log out a single owner session. */
+  revokeSession(tenant: string, sessionId: string): void {
+    this.sessions.revoke(tenant, sessionId);
+  }
+
+  /** Revoke every owner session for a tenant (sign out everywhere). */
+  revokeAllSessions(tenant: string): void {
+    this.sessions.revokeAll(tenant);
   }
 
   // --- push notifications (wearables / companion) — available to all plans ---
@@ -298,6 +319,7 @@ export class Hub {
         this.deps.twitchLink?.hydrate?.(id),
         this.deps.youtubeLink?.hydrate?.(id),
         this.denylist.hydrate(id),
+        this.sessions.hydrate(id),
       ])
         .then(([loaded]) => {
           if (loaded) {

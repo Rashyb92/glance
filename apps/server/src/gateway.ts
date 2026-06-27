@@ -50,6 +50,7 @@ export interface GatewayControl {
   removeMember: (tenant: string, id: string) => boolean | null;
   revokeMember: (tenant: string, memberId: string) => boolean | null;
   memberActive: (tenant: string, memberId: string) => boolean;
+  sessionActive: (tenant: string, sessionId: string, issuedAt: number) => boolean;
   listPush: (tenant: string) => PushSubscription[];
   subscribePush: (
     tenant: string,
@@ -170,7 +171,11 @@ export function startGateway(
     }
 
     const actor = resolveActor(tokenFromUrl(req.url));
-    if (!actor || (actor.memberId && !control.memberActive(actor.tenant, actor.memberId))) {
+    if (
+      !actor ||
+      (actor.memberId && !control.memberActive(actor.tenant, actor.memberId)) ||
+      (actor.sessionId && !control.sessionActive(actor.tenant, actor.sessionId, actor.issuedAt ?? 0))
+    ) {
       metrics.inc('glance_ws_unauthorized_total');
       socket.close(1008, 'unauthorized');
       return;
@@ -299,8 +304,12 @@ function handleHttp(
     send(401, { error: 'unauthorized' });
     return;
   }
-  // Member tokens are revoked the instant the member is removed from the roster.
-  if (actor.memberId && !control.memberActive(actor.tenant, actor.memberId)) {
+  // Member tokens are revoked when removed from the roster; owner session tokens when the user
+  // logs out or revokes all sessions (stolen-token kill switch).
+  if (
+    (actor.memberId && !control.memberActive(actor.tenant, actor.memberId)) ||
+    (actor.sessionId && !control.sessionActive(actor.tenant, actor.sessionId, actor.issuedAt ?? 0))
+  ) {
     send(401, { error: 'unauthorized' });
     return;
   }

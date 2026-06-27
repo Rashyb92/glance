@@ -1,7 +1,7 @@
 import type { IncomingMessage, ServerResponse } from 'node:http';
 import { randomBytes } from 'node:crypto';
 import { isPlanId } from '@glance/core';
-import { resolveTenant } from '../auth';
+import { resolveActor, resolveTenant } from '../auth';
 import { logger } from '../logger';
 import { isProviderId } from './oauth-providers';
 import type { OAuthService } from './oauth-service';
@@ -138,6 +138,26 @@ export function handleIntegrationRoutes(
       return true;
     }
     send(200, deps.auth.refresh(tenant));
+    return true;
+  }
+  if (path === '/api/auth/logout' && req.method === 'POST') {
+    const actor = resolveActor(tokenFromReq(req));
+    if (!actor) {
+      send(401, { error: 'unauthorized' });
+      return true;
+    }
+    if (actor.sessionId) deps.auth.logout(actor.tenant, actor.sessionId);
+    send(200, { ok: true });
+    return true;
+  }
+  if (path === '/api/auth/revoke-all' && req.method === 'POST') {
+    const actor = resolveActor(tokenFromReq(req));
+    if (!actor) {
+      send(401, { error: 'unauthorized' });
+      return true;
+    }
+    deps.auth.revokeAll(actor.tenant);
+    send(200, { ok: true });
     return true;
   }
 

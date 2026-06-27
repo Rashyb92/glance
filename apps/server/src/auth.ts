@@ -13,6 +13,9 @@ import { isTeamRole, type TeamRole } from '@glance/core';
 export function resolveTenant(token: string | undefined): string | null {
   const secret = process.env['GLANCE_AUTH_SECRET'];
   if (!secret) return (token && token.trim()) || 'default';
+  // Owner-scoped: accept a session token or a legacy tenant token, but not a member login.
+  const session = verifySessionToken(token, secret);
+  if (session) return session.tenant;
   return verifyToken(token, secret);
 }
 
@@ -28,6 +31,20 @@ export function signToken(tenant: string, secret: string, opts: TokenOptions = {
       ? Math.floor(Date.now() / 1000) + Math.floor(opts.ttlSeconds)
       : 0;
   const body = `${tenant}.${exp}`;
+  const sig = createHmac('sha256', secret).update(body).digest('base64url');
+  return `${body}.${sig}`;
+}
+
+/** Issue a signed, revocable owner session token `<tenant>.<sessionId>.<iat>.<exp>.<sig>`. */
+export function signSessionToken(
+  tenant: string,
+  sessionId: string,
+  secret: string,
+  opts: TokenOptions = {},
+): string {
+  const iat = Math.floor(Date.now() / 1000);
+  const exp = opts.ttlSeconds && opts.ttlSeconds > 0 ? iat + Math.floor(opts.ttlSeconds) : 0;
+  const body = `${tenant}.${sessionId}.${iat}.${exp}`;
   const sig = createHmac('sha256', secret).update(body).digest('base64url');
   return `${body}.${sig}`;
 }
@@ -66,6 +83,10 @@ export interface Actor {
   tenant: string;
   role: TeamRole;
   memberId?: string;
+  /** Present for owner *session* tokens (revocable via the session store). */
+  sessionId?: string;
+  /** Token issued-at (unix seconds) — checked against the tenant's revoke-all epoch. */
+  issuedAt?: number;
 }
 
 /** Issue a signed per-member login token `<tenant>.<memberId>.<role>.<exp>.<sig>`. */
@@ -98,6 +119,8 @@ export function resolveActor(token: string | undefined): Actor | null {
   }
   const member = verifyMemberToken(token, secret);
   if (member) return member;
+  const session = verifySessionToken(token, secret);
+  if (session) return session;
   const tenant = verifyToken(token, secret);
   return tenant ? { tenant, role: 'owner' } : null;
 }
@@ -117,4 +140,24 @@ function verifyMemberToken(token: string | undefined, secret: string): Actor | n
   if (!Number.isFinite(exp)) return null;
   if (exp !== 0 && exp < Math.floor(Date.now() / 1000)) return null; // expired
   return { tenant, memberId, role };
+}
+
+/** Verify an owner session token `<tenant>.<sessionId>.<iat>.<exp>.<sig>`. Revocation (logout /
+ *  revoke-all) is enforced separately against the session store, using `sessionId` + `issuedAt`. */
+function verifySessionToken(token: string | undefined, secret: string): Actor | null {
+  if (!token) return null;
+  const parts = token.split('.');
+  if (parts.length !== 5) return null;
+  const [tenant, sessionId, iatRaw, expRaw, sig] = parts;
+  if (!tenant || !sessionId || iatRaw === undefined || expRaw === undefined || !sig) return null;
+  const iat = Number.parseInt(iatRaw, 10);
+  const exp = Number.parseInt(expRaw, 10);
+  // Both numeric distinguishes a session token from a member token (whose 3rd segment is a role).
+  if (!Number.isFinite(iat) || !Number.isFinite(exp)) return null;
+  const expected = createHmac('sha256', secret)
+    .update(`${tenant}.${sessionId}.${iatRaw}.${expRaw}`)
+    .digest('base64url');
+  if (!safeEqual(sig, expected)) return null;
+  if (exp !== 0 && exp < Math.floor(Date.now() / 1000)) return null; // expired
+  return { tenant, role: 'owner', sessionId, issuedAt: iat };
 }
