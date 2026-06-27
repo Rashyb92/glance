@@ -59,6 +59,21 @@ Register for notifications on launch, send the APNs device token to
 Notifications* capability in Xcode and upload an APNs auth key in the Apple Developer
 portal.
 
+### Native haptics
+
+```bash
+pnpm add @capacitor/haptics
+npx cap sync ios
+```
+
+That's the whole step — the companion **auto-detects** the Capacitor Haptics bridge at
+runtime (`apps/companion/src/haptics.ts`) and routes per-category feedback through it
+(donations → success, moderation → warning, channel events → a heavy tap, questions/mentions
+→ a medium tap). This is what makes haptics work on iOS, where the Web Vibration API is
+unavailable inside a `WKWebView`. The home-screen PWA and the Android TWA keep using the Web
+Vibration API automatically; no code change is needed for either path, and the per-category
+feedback is gated by the **routing matrix** ("feel" column) like every other output channel.
+
 ## App Store review notes
 
 Apple guideline **4.2 (minimum functionality)** can flag thin web wrappers. The native

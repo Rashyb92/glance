@@ -32,3 +32,33 @@ export function hapticPattern(category: SalienceCategory): number[] {
       return [20]; // soft blip
   }
 }
+
+/**
+ * Native (Capacitor Haptics) feedback per category — the iOS/Android analogue of
+ * {@link hapticPattern}. iOS doesn't take raw vibration patterns; it exposes semantic
+ * impacts (light/medium/heavy) and notification feedback (success/warning/error), which
+ * feel native and map cleanly onto our categories. The native shells use this; the
+ * web/PWA path uses {@link hapticPattern} with the Web Vibration API.
+ */
+export type NativeHaptic =
+  | { kind: 'impact'; style: 'LIGHT' | 'MEDIUM' | 'HEAVY' }
+  | { kind: 'notification'; type: 'SUCCESS' | 'WARNING' | 'ERROR' };
+
+export function nativeHaptic(category: SalienceCategory): NativeHaptic {
+  switch (category) {
+    case 'donation':
+      return { kind: 'notification', type: 'SUCCESS' }; // a win
+    case 'moderation':
+      return { kind: 'notification', type: 'WARNING' }; // needs attention
+    case 'event':
+      return { kind: 'impact', style: 'HEAVY' }; // something big
+    case 'question':
+    case 'mention':
+      return { kind: 'impact', style: 'MEDIUM' }; // someone wants you
+    case 'highlight':
+    case 'trend':
+    case 'chatter':
+    default:
+      return { kind: 'impact', style: 'LIGHT' }; // gentle
+  }
+}

@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { hapticPattern } from '../src/haptics';
+import { hapticPattern, nativeHaptic } from '../src/haptics';
 import type { SalienceCategory } from '../src/types';
 
 const CATEGORIES: SalienceCategory[] = [
@@ -36,5 +36,21 @@ describe('hapticPattern', () => {
 
   it('is deterministic', () => {
     expect(hapticPattern('question')).toEqual(hapticPattern('question'));
+  });
+});
+
+describe('nativeHaptic', () => {
+  it('maps every category to a valid Capacitor feedback', () => {
+    for (const category of CATEGORIES) {
+      const spec = nativeHaptic(category);
+      if (spec.kind === 'impact') expect(['LIGHT', 'MEDIUM', 'HEAVY']).toContain(spec.style);
+      else expect(['SUCCESS', 'WARNING', 'ERROR']).toContain(spec.type);
+    }
+  });
+
+  it('uses success for donations, warning for moderation, a heavy hit for events', () => {
+    expect(nativeHaptic('donation')).toEqual({ kind: 'notification', type: 'SUCCESS' });
+    expect(nativeHaptic('moderation')).toEqual({ kind: 'notification', type: 'WARNING' });
+    expect(nativeHaptic('event')).toEqual({ kind: 'impact', style: 'HEAVY' });
   });
 });
