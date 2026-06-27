@@ -2,13 +2,15 @@ import { mkdirSync, readFileSync, renameSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { randomUUID } from 'node:crypto';
 
-export type PushPlatform = 'apns' | 'fcm' | 'webhook';
+export type PushPlatform = 'apns' | 'fcm' | 'webhook' | 'webpush';
 
 export interface PushSubscription {
   id: string;
   platform: PushPlatform;
-  endpoint: string; // device token (apns/fcm) or an https URL (webhook)
+  endpoint: string; // device token (apns/fcm) or an https URL (webhook / webpush)
   createdAt: number;
+  /** Web Push encryption keys (RFC 8291) — required for the `webpush` platform. */
+  keys?: { p256dh: string; auth: string };
 }
 
 /**
@@ -29,14 +31,18 @@ export class PushStore {
     tenant: string,
     platform: string,
     endpoint: string,
+    keys?: { p256dh: string; auth: string },
   ): PushSubscription | { error: string } {
-    if (platform !== 'apns' && platform !== 'fcm' && platform !== 'webhook') {
+    if (platform !== 'apns' && platform !== 'fcm' && platform !== 'webhook' && platform !== 'webpush') {
       return { error: 'invalid platform' };
     }
     const ep = endpoint.trim();
-    if (!ep || ep.length > 500) return { error: 'invalid endpoint' };
-    if (platform === 'webhook' && !/^https:\/\/[^\s"'<>]{1,500}$/.test(ep)) {
-      return { error: 'webhook must be https' };
+    if (!ep || ep.length > 1000) return { error: 'invalid endpoint' };
+    if ((platform === 'webhook' || platform === 'webpush') && !/^https:\/\/[^\s"'<>]{1,1000}$/.test(ep)) {
+      return { error: 'endpoint must be https' };
+    }
+    if (platform === 'webpush' && (!keys?.p256dh || !keys.auth)) {
+      return { error: 'webpush requires keys' };
     }
     const subs = this.read(tenant);
     const existing = subs.find((s) => s.endpoint === ep);
@@ -49,6 +55,7 @@ export class PushStore {
       endpoint: ep,
       createdAt: Date.now(),
     };
+    if (platform === 'webpush' && keys) sub.keys = { p256dh: keys.p256dh, auth: keys.auth };
     this.write(tenant, [...subs, sub]);
     return sub;
   }

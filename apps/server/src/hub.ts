@@ -155,9 +155,10 @@ export class Hub {
     tenant: string,
     platform: string,
     endpoint: string,
+    keys?: { p256dh: string; auth: string },
   ): PushSubscription | { error: string } {
     return this.deps.push
-      ? this.deps.push.subscribe(tenant, platform, endpoint)
+      ? this.deps.push.subscribe(tenant, platform, endpoint, keys)
       : { error: 'push unavailable' };
   }
   removePush(tenant: string, id: string): boolean {

@@ -16,6 +16,7 @@ import type { IntegrationDeps } from './integrations/routes';
 import { TeamStore } from './team-store';
 import { PushStore } from './push-store';
 import { DefaultPushProvider, Notifier } from './push';
+import { WebPushProvider } from './web-push';
 import { logger } from './logger';
 
 // Refuse to boot in production without auth: with no secret every client collapses
@@ -83,7 +84,21 @@ const push = new PushStore(resolve(repoRoot, '.data', 'push'));
 
 // Push the highest-signal moments (priority callouts, channel events) to each tenant's
 // registered devices — the wearables / phone-companion render target.
-const notifier = new Notifier(push, new DefaultPushProvider((m) => logger.info(m)));
+// Real background delivery when VAPID keys are configured (Web Push to the companion /
+// wearables); otherwise webhook subs still POST and apns/fcm log via the default provider.
+const defaultPush = new DefaultPushProvider((m) => logger.info(m));
+const vapidPublic = process.env['VAPID_PUBLIC_KEY'];
+const vapidPrivate = process.env['VAPID_PRIVATE_KEY'];
+const pushProvider =
+  vapidPublic && vapidPrivate
+    ? new WebPushProvider(
+        vapidPublic,
+        vapidPrivate,
+        process.env['VAPID_SUBJECT'] ?? 'mailto:ops@glance.app',
+        defaultPush,
+      )
+    : defaultPush;
+const notifier = new Notifier(push, pushProvider);
 bus.subscribe((tenant, message) => notifier.consider(tenant, message));
 
 // Live readers activate when the matching app is configured; otherwise tenants fall

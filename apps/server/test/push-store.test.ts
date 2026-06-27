@@ -22,7 +22,7 @@ describe('PushStore', () => {
   });
 
   it('rejects a non-https webhook and an invalid platform', () => {
-    expect(store.subscribe('acme', 'webhook', 'http://x')).toEqual({ error: 'webhook must be https' });
+    expect(store.subscribe('acme', 'webhook', 'http://x')).toEqual({ error: 'endpoint must be https' });
     expect(store.subscribe('acme', 'carrier-pigeon', 'x')).toEqual({ error: 'invalid platform' });
   });
 

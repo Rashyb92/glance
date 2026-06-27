@@ -64,6 +64,7 @@ Each app is a separate Pages project. Build command `pnpm install && pnpm --filt
 VITE_GLANCE_WS_URL = wss://<your-app>.fly.dev      # hud + companion (WebSocket)
 VITE_GLANCE_API_URL = https://<your-app>.fly.dev   # dashboard + companion (REST)
 VITE_GLANCE_TOKEN = <a signed tenant token>        # selects the tenant in prod
+VITE_VAPID_PUBLIC_KEY = <VAPID public key>         # companion only — enables background Web Push
 ```
 
 Mint a tenant token with `signToken(tenant, GLANCE_AUTH_SECRET)` (see `apps/server/src/auth.ts`); team members use their own per-member tokens from the dashboard Team card. The companion **must** be served over HTTPS for the service worker + Web Push to work.

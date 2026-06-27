@@ -53,6 +53,7 @@ export interface GatewayControl {
     tenant: string,
     platform: string,
     endpoint: string,
+    keys?: { p256dh: string; auth: string },
   ) => PushSubscription | { error: string };
   removePush: (tenant: string, id: string) => boolean;
 }
@@ -380,6 +381,7 @@ function handleHttp(
             tenant,
             typeof body['platform'] === 'string' ? body['platform'] : '',
             typeof body['endpoint'] === 'string' ? body['endpoint'] : '',
+            parsePushKeys(body['keys']),
           );
           return send('error' in result ? 400 : 200, result);
         })
@@ -432,6 +434,15 @@ function readJson(req: IncomingMessage): Promise<Record<string, unknown>> {
     });
     req.on('error', () => reject(new Error('request_error')));
   });
+}
+
+/** Parse Web Push subscription keys (p256dh + auth) from a request body. */
+function parsePushKeys(value: unknown): { p256dh: string; auth: string } | undefined {
+  if (!value || typeof value !== 'object') return undefined;
+  const o = value as Record<string, unknown>;
+  const p256dh = typeof o['p256dh'] === 'string' ? o['p256dh'] : '';
+  const auth = typeof o['auth'] === 'string' ? o['auth'] : '';
+  return p256dh && auth ? { p256dh, auth } : undefined;
 }
 
 /** Validate a connect request's platform (defaults to twitch). */

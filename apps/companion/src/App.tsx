@@ -3,7 +3,7 @@ import { parseVoiceCommand } from '@glance/core';
 import { useFeed } from './useFeed';
 import { earcon, speak } from './audio';
 import { useVoice } from './useVoice';
-import { markMoment } from './api';
+import { markMoment, subscribePush } from './api';
 
 export function App(): JSX.Element {
   const { status, priorities, events, session, settings, stats, summary } = useFeed();
@@ -80,6 +80,7 @@ export function App(): JSX.Element {
     if (!('Notification' in window)) return;
     const perm = await Notification.requestPermission();
     setNotify(perm === 'granted');
+    if (perm === 'granted') void subscribePush(); // real background Web Push (no-op without VAPID)
   };
 
   return (
