@@ -1,0 +1,27 @@
+{
+  "packageId": "app.glance.companion",
+  "host": "companion.glance.example",
+  "name": "Glance Companion",
+  "launcherName": "Glance",
+  "display": "standalone",
+  "orientation": "portrait",
+  "themeColor": "#0a0a0f",
+  "themeColorDark": "#0a0a0f",
+  "navigationColor": "#0a0a0f",
+  "navigationColorDark": "#0a0a0f",
+  "backgroundColor": "#0a0a0f",
+  "startUrl": "/",
+  "webManifestUrl": "https://companion.glance.example/manifest.webmanifest",
+  "iconUrl": "https://companion.glance.example/icon-512.png",
+  "maskableIconUrl": "https://companion.glance.example/icon-512.png",
+  "enableNotifications": true,
+  "fallbackType": "customtabs",
+  "appVersionName": "1.0.0",
+  "appVersionCode": 1,
+  "minSdkVersion": 23,
+  "shortcuts": [],
+  "signingKey": {
+    "path": "./android.keystore",
+    "alias": "glance"
+  }
+}

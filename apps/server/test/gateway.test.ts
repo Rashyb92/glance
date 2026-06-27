@@ -1,5 +1,5 @@
-import { describe, it, expect } from 'vitest';
-import { originAllowed, corsHeaders, parseChannels } from '../src/gateway';
+import { afterEach, describe, it, expect } from 'vitest';
+import { originAllowed, corsHeaders, parseChannels, securityHeaders } from '../src/gateway';
 
 describe('originAllowed', () => {
   it('allows no-origin (native / CLI clients) and the default localhost origins', () => {
@@ -65,5 +65,25 @@ describe('parseChannels (unified multi-channel connect)', () => {
   it('returns no sources for an empty / demo-only request', () => {
     expect(parseChannels({})).toEqual([]);
     expect(parseChannels({ channel: '   ' })).toEqual([]);
+  });
+});
+
+describe('securityHeaders', () => {
+  afterEach(() => {
+    delete process.env['NODE_ENV'];
+  });
+
+  it('sets the baseline hardening headers', () => {
+    const h = securityHeaders();
+    expect(h['x-content-type-options']).toBe('nosniff');
+    expect(h['referrer-policy']).toBe('no-referrer');
+    expect(h['x-frame-options']).toBe('DENY');
+  });
+
+  it('adds HSTS only in production', () => {
+    delete process.env['NODE_ENV'];
+    expect(securityHeaders()['strict-transport-security']).toBeUndefined();
+    process.env['NODE_ENV'] = 'production';
+    expect(securityHeaders()['strict-transport-security']).toContain('max-age=');
   });
 });

@@ -74,6 +74,7 @@ const ALLOWED_ORIGINS = (
   .map((s) => s.trim())
   .filter(Boolean);
 const MAX_CLIENTS = intEnv('GLANCE_MAX_CLIENTS', 500);
+const MAX_CLIENTS_PER_TENANT = intEnv('GLANCE_MAX_CLIENTS_PER_TENANT', 50);
 const MAX_WS_PAYLOAD = intEnv('GLANCE_MAX_WS_PAYLOAD', 64 * 1024); // 64 KB/frame
 const MAX_BODY_BYTES = intEnv('GLANCE_MAX_BODY_BYTES', 256 * 1024); // 256 KB REST body
 const MAX_BUFFERED = intEnv('GLANCE_MAX_BUFFERED', 1024 * 1024); // 1 MB per-client send buffer
@@ -103,6 +104,9 @@ export function startGateway(
   const httpLimiter = new RateLimiter(intEnv('GLANCE_HTTP_BURST', 60), intEnv('GLANCE_HTTP_RPS', 20));
   const connLimiter = new RateLimiter(intEnv('GLANCE_CONN_BURST', 20), intEnv('GLANCE_CONN_RPS', 5));
   const server = createServer((req, res) => handleHttp(req, res, control, httpLimiter, integrations));
+  // Slowloris defense: cap how long a client may take to send headers / the full request.
+  server.headersTimeout = intEnv('GLANCE_HEADERS_TIMEOUT_MS', 20_000);
+  server.requestTimeout = intEnv('GLANCE_REQUEST_TIMEOUT_MS', 30_000);
 
   const wss = new WebSocketServer({
     server,
@@ -171,6 +175,14 @@ export function startGateway(
     }
     const tenant = actor.tenant;
 
+    // Per-tenant connection cap, so one tenant can't exhaust the global pool.
+    const existingRoom = rooms.get(tenant);
+    if (existingRoom && existingRoom.size >= MAX_CLIENTS_PER_TENANT) {
+      metrics.inc('glance_ws_tenant_capacity_total');
+      socket.close(1013, 'tenant at capacity');
+      return;
+    }
+
     socket.tenant = tenant;
     join(tenant, socket);
     metrics.inc('glance_ws_connections_total');
@@ -235,7 +247,7 @@ function handleHttp(
   limiter: RateLimiter,
   integrations?: IntegrationDeps,
 ): void {
-  const cors = corsHeaders(req.headers.origin);
+  const cors = { ...corsHeaders(req.headers.origin), ...securityHeaders() };
   const send = (code: number, body?: unknown): void => {
     res.writeHead(code, { 'content-type': 'application/json', ...cors });
     res.end(body === undefined ? '' : JSON.stringify(body));
@@ -519,6 +531,19 @@ export function corsHeaders(origin: string | undefined): Record<string, string> 
     vary: 'Origin',
   };
   if (origin && originAllowed(origin)) headers['access-control-allow-origin'] = origin;
+  return headers;
+}
+
+/** Security headers applied to every HTTP response (HSTS is added only in production). */
+export function securityHeaders(): Record<string, string> {
+  const headers: Record<string, string> = {
+    'x-content-type-options': 'nosniff',
+    'referrer-policy': 'no-referrer',
+    'x-frame-options': 'DENY',
+  };
+  if (process.env['NODE_ENV'] === 'production') {
+    headers['strict-transport-security'] = 'max-age=63072000; includeSubDomains';
+  }
   return headers;
 }
 
