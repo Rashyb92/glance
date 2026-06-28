@@ -84,7 +84,7 @@ describe('admin console (HTTP)', () => {
   it('returns a tenant snapshot for an authorized operator', async () => {
     const r = await fetch(`${BASE}/api/admin/tenant/t1`, { headers: AUTH });
     expect(r.status).toBe(200);
-    expect((await r.json()).tenant).toBe('t1');
+    expect(((await r.json()) as AdminSnapshot).tenant).toBe('t1');
   });
 
   it('force-logs-out a tenant and revokes a member', async () => {
@@ -120,7 +120,7 @@ describe('admin console (HTTP)', () => {
       body: JSON.stringify({ email: 'known@x.com', confirm: 'known@x.com' }),
     });
     expect(hit.status).toBe(200);
-    expect((await hit.json()).tenant).toBe('tenant-123');
+    expect(((await hit.json()) as { tenant: string }).tenant).toBe('tenant-123');
     expect(calls.eraseTenant).toContain('tenant-123'); // data wiped after the record
 
     const miss = await fetch(`${BASE}/api/admin/account/delete`, {
