@@ -35,6 +35,15 @@ primary_region = "lhr" # London; change to your nearest Fly region.
   timeout = "2s"
   grace_period = "10s"
 
+# Readiness gate: only route traffic once Postgres is reachable + migrated (/ready returns 503
+# until then). /health above stays a pure liveness signal.
+[[http_service.checks]]
+  method = "GET"
+  path = "/ready"
+  interval = "15s"
+  timeout = "2s"
+  grace_period = "20s"
+
 # Persistent disk for the file-backed stores — gives single-instance durability across
 # redeploys. Remove this once the per-tenant stores point at Postgres (Neon), since a
 # Fly volume is bound to one machine and can't be shared across instances.

@@ -251,6 +251,11 @@ export function startGateway(
   };
 }
 
+// Per-tenant cooldown on clip/mark — Twitch clip creation is rate-limited upstream and a hot path
+// for abuse. Override with GLANCE_CLIP_COOLDOWN_MS.
+const MARK_COOLDOWN_MS = Number(process.env['GLANCE_CLIP_COOLDOWN_MS']) || 15_000;
+const markCooldown = new Map<string, number>();
+
 function handleHttp(
   req: IncomingMessage,
   res: ServerResponse,
@@ -273,10 +278,10 @@ function handleHttp(
 
   const url = (req.url ?? '').split('?')[0] ?? '';
 
-  // Metrics: open by default (Prometheus scrapes behind a private network); when METRICS_TOKEN is
-  // set, require it (Bearer or `?token=`) so a public deploy can lock the endpoint down.
+  // Metrics: open by default (Prometheus scrapes behind a private network); when
+  // GLANCE_METRICS_TOKEN is set, require it (Bearer or `?token=`) so a public deploy can lock it down.
   if (req.method === 'GET' && url === '/metrics') {
-    const metricsToken = process.env['METRICS_TOKEN'];
+    const metricsToken = process.env['GLANCE_METRICS_TOKEN'];
     if (metricsToken && tokenFromReq(req) !== metricsToken) {
       send(401, { error: 'unauthorized' });
       return;
@@ -357,6 +362,12 @@ function handleHttp(
     }
   }
   if (url === '/api/mark' && req.method === 'POST') {
+    const now = Date.now();
+    if (now - (markCooldown.get(tenant) ?? 0) < MARK_COOLDOWN_MS) {
+      send(429, { error: 'clip cooldown — try again in a moment' });
+      return;
+    }
+    markCooldown.set(tenant, now);
     control
       .mark(tenant)
       .then((result) => send(200, { ok: true, ...result }))

@@ -1,6 +1,7 @@
 import { mkdirSync, renameSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { randomUUID } from 'node:crypto';
+import { lookup } from 'node:dns/promises';
 import { KvCache, readFileOrNull } from './kv-cache';
 import type { KvStore } from './kv';
 
