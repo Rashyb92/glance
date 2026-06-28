@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { getToken } from './deviceToken';
+import { wsTicket } from './deviceToken';
 import type {
   ChannelEvent,
   ChatSummary,
@@ -35,8 +35,7 @@ export interface FeedState {
 const WS_BASE =
   (import.meta.env['VITE_GLANCE_WS_URL'] as string | undefined) ??
   `ws://localhost:${(import.meta.env['VITE_GLANCE_WS'] as string | undefined) ?? '8787'}`;
-function wsUrl(): string {
-  const token = getToken();
+function wsUrl(token: string | undefined): string {
   if (!token) return WS_BASE;
   return `${WS_BASE}${WS_BASE.includes('?') ? '&' : '?'}token=${encodeURIComponent(token)}`;
 }
@@ -63,9 +62,9 @@ export function useGlanceFeed(): FeedState {
     let closedByUs = false;
     let retry: ReturnType<typeof setTimeout> | null = null;
 
-    const connect = (): void => {
-      setStatus((s) => (s === 'online' ? s : 'connecting'));
-      const ws = new WebSocket(wsUrl());
+    const open = (ticket: string | undefined): void => {
+      if (closedByUs) return;
+      const ws = new WebSocket(wsUrl(ticket));
       wsRef.current = ws;
 
       ws.onopen = () => setStatus('online');
@@ -107,6 +106,10 @@ export function useGlanceFeed(): FeedState {
             break;
         }
       };
+    };
+    const connect = (): void => {
+      setStatus((s) => (s === 'online' ? s : 'connecting'));
+      void wsTicket().then(open);
     };
 
     connect();

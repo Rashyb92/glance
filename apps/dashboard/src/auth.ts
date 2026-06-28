@@ -37,6 +37,25 @@ export function clearToken(): void {
   }
 }
 
+/** Fetch a short-lived WS connect ticket — the long-lived token stays in this POST's header, so
+ *  only a 30s token ever appears in the WebSocket URL. Falls back to the stored token (dev). */
+export async function wsTicket(): Promise<string | undefined> {
+  const token = getToken();
+  try {
+    const res = await fetch(`${API_BASE}/api/auth/ws-ticket`, {
+      method: 'POST',
+      headers: token ? { authorization: `Bearer ${token}` } : {},
+    });
+    if (res.ok) {
+      const data = (await res.json()) as { token?: string };
+      if (data.token) return data.token;
+    }
+  } catch {
+    /* fall back to the stored token */
+  }
+  return token;
+}
+
 /** Revoke this session server-side (best-effort), then clear the local token. */
 export async function logout(): Promise<void> {
   const token = getToken();

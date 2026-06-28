@@ -160,6 +160,17 @@ export function handleIntegrationRoutes(
     send(200, { ok: true });
     return true;
   }
+  // A short-lived WS connect ticket — so the long-lived token stays in this POST's header,
+  // and only a 30s token ever appears in the WebSocket URL.
+  if (path === '/api/auth/ws-ticket' && req.method === 'POST') {
+    const actor = resolveActor(tokenFromReq(req));
+    if (!actor) {
+      send(401, { error: 'unauthorized' });
+      return true;
+    }
+    send(200, deps.auth.issueTicket(actor));
+    return true;
+  }
 
   // OAuth: start the link (tenant-scoped).
   if (path.startsWith('/api/oauth/') && path.endsWith('/start')) {

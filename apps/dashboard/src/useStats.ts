@@ -8,7 +8,7 @@ import type {
   ServerMessage,
   SessionState,
 } from '@glance/core';
-import { getToken } from './auth';
+import { wsTicket } from './auth';
 
 export type ConnectionStatus = 'connecting' | 'online' | 'offline';
 
@@ -27,8 +27,7 @@ export interface DashState {
 const WS_BASE =
   (import.meta.env['VITE_GLANCE_WS_URL'] as string | undefined) ??
   `ws://localhost:${(import.meta.env['VITE_GLANCE_WS'] as string | undefined) ?? '8787'}`;
-function wsUrl(): string {
-  const token = getToken();
+function wsUrl(token: string | undefined): string {
   if (!token) return WS_BASE;
   return `${WS_BASE}${WS_BASE.includes('?') ? '&' : '?'}token=${encodeURIComponent(token)}`;
 }
@@ -49,9 +48,9 @@ export function useStats(): DashState {
     let closedByUs = false;
     let retry: ReturnType<typeof setTimeout> | null = null;
 
-    const connect = (): void => {
-      setStatus((s) => (s === 'online' ? s : 'connecting'));
-      const ws = new WebSocket(wsUrl());
+    const open = (ticket: string | undefined): void => {
+      if (closedByUs) return;
+      const ws = new WebSocket(wsUrl(ticket));
       wsRef.current = ws;
       ws.onopen = () => setStatus('online');
       ws.onerror = () => ws.close();
@@ -89,6 +88,10 @@ export function useStats(): DashState {
             break;
         }
       };
+    };
+    const connect = (): void => {
+      setStatus((s) => (s === 'online' ? s : 'connecting'));
+      void wsTicket().then(open);
     };
 
     connect();

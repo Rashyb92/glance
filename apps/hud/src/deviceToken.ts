@@ -30,3 +30,26 @@ export function getToken(): string | undefined {
   }
   return (import.meta.env['VITE_GLANCE_TOKEN'] as string | undefined) || undefined;
 }
+
+const API_BASE =
+  (import.meta.env['VITE_GLANCE_API_URL'] as string | undefined) ??
+  `http://localhost:${(import.meta.env['VITE_GLANCE_WS'] as string | undefined) ?? '8787'}`;
+
+/** Fetch a short-lived WS connect ticket — the device token stays in this POST's header, so only
+ *  a 30s token ever appears in the WebSocket URL. Falls back to the stored token (dev). */
+export async function wsTicket(): Promise<string | undefined> {
+  const token = getToken();
+  try {
+    const res = await fetch(`${API_BASE}/api/auth/ws-ticket`, {
+      method: 'POST',
+      headers: token ? { authorization: `Bearer ${token}` } : {},
+    });
+    if (res.ok) {
+      const data = (await res.json()) as { token?: string };
+      if (data.token) return data.token;
+    }
+  } catch {
+    /* fall back to the stored token */
+  }
+  return token;
+}

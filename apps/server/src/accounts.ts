@@ -1,6 +1,6 @@
 import { createHash, randomBytes, randomUUID, scrypt as scryptCb, timingSafeEqual } from 'node:crypto';
 import { promisify } from 'node:util';
-import { signSessionToken } from './auth';
+import { signSessionToken, signMemberToken, type Actor } from './auth';
 import type { KvStore } from './kv';
 import type { SessionStore } from './session-store';
 
@@ -148,6 +148,19 @@ export class AuthService {
   /** Sign out everywhere — revoke every session for the account (stolen-token kill switch). */
   revokeAll(tenant: string): void {
     this.sessions?.revokeAll(tenant);
+  }
+
+  /**
+   * Issue a short-lived (30s) connect ticket so the long-lived token never rides in a WebSocket
+   * URL. Preserves the caller's identity: a member gets a member ticket, an owner a session ticket.
+   */
+  issueTicket(actor: Actor): AuthSession {
+    if (!this.secret) return { token: actor.tenant, tenant: actor.tenant, expiresAt: 0 };
+    const ttl = 30;
+    const token = actor.memberId
+      ? signMemberToken(actor.tenant, actor.memberId, actor.role, this.secret, { ttlSeconds: ttl })
+      : signSessionToken(actor.tenant, randomUUID(), this.secret, { ttlSeconds: ttl });
+    return { token, tenant: actor.tenant, expiresAt: Math.floor(Date.now() / 1000) + ttl };
   }
 
   private issue(tenant: string): AuthSession {
