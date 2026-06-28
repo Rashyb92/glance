@@ -95,8 +95,10 @@ export const DEFAULT_ENGINE_SETTINGS: EngineSettings = {
   aiPriorities: true,
   moderation: true,
   moderationSensitivity: 0.5,
-  retentionDays: 30,
-  storeMessageText: true,
+  // Privacy-first defaults: keep archives short and don't persist raw chat text unless the creator
+  // opts in (both are toggleable; raw-text retention can run into platform caching limits).
+  retentionDays: 7,
+  storeMessageText: false,
   branding: { ...DEFAULT_BRANDING },
 };
 
@@ -120,9 +122,9 @@ export function normalizeEngineSettings(input: unknown): EngineSettings {
     moderation: boolOr(obj['moderation'], true),
     moderationSensitivity: round2(clamp(numberOr(obj['moderationSensitivity'], 0.5), 0, 1)),
     retentionDays: Math.round(
-      clamp(numberOr(obj['retentionDays'], 30), 0, ENGINE_SETTINGS_BOUNDS.maxRetentionDays),
+      clamp(numberOr(obj['retentionDays'], 7), 0, ENGINE_SETTINGS_BOUNDS.maxRetentionDays),
     ),
-    storeMessageText: boolOr(obj['storeMessageText'], true),
+    storeMessageText: boolOr(obj['storeMessageText'], false),
     branding: sanitizeBranding(obj['branding']),
   };
 }

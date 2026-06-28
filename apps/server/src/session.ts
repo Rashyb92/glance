@@ -19,6 +19,10 @@ import type { Storage } from './storage';
 import { metrics } from './metrics';
 import type { ClipResult } from './clip';
 
+// Kick ingestion is experimental — its public API/scopes aren't officially stable (audit risk),
+// so it's off unless explicitly enabled with GLANCE_ENABLE_KICK=1.
+const KICK_ENABLED = process.env['GLANCE_ENABLE_KICK'] === '1';
+
 export interface SessionDeps {
   ai: AIProvider;
   storage: Storage;
@@ -330,7 +334,7 @@ export class SessionController {
 
   /** Construct the live adapter for a platform, or null if it can't read live. */
   private buildAdapter(source: Platform, ch: string): PlatformAdapter | null {
-    if (source === 'kick') return new KickAdapter(ch);
+    if (source === 'kick') return KICK_ENABLED ? new KickAdapter(ch) : null;
     if (source === 'youtube') return this.deps.makeYouTubeAdapter?.(ch) ?? null;
     return this.deps.makeTwitchAdapter?.(ch) ?? new TwitchAdapter(ch);
   }

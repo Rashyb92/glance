@@ -241,7 +241,9 @@ export class Hub {
     platform: Platform,
     channel: string,
   ): Promise<number | null> {
-    if (platform === 'kick') return kickViewers(channel);
+    if (platform === 'kick') {
+      return process.env['GLANCE_ENABLE_KICK'] === '1' ? kickViewers(channel) : null;
+    }
     if (platform === 'twitch' && this.deps.twitchLink) {
       const token = await this.deps.twitchLink.getToken(tenant);
       return token ? twitchViewers(channel, this.deps.twitchLink.clientId, token) : null;
