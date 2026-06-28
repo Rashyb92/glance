@@ -79,6 +79,31 @@ if (databaseUrl) {
   }
 }
 
+// Multi-instance fan-out + a fleet-wide AI usage meter + a cross-instance revocation control
+// channel when REDIS_URL is set; in-process otherwise. `redis` is an optional dependency,
+// loaded only on this path.
+let bus: Bus = new InProcessBus();
+let usageMeter: UsageMeter | undefined;
+let controlPublish: ((msg: string) => void) | undefined;
+let controlSubscribe: ((cb: (raw: string) => void) => void) | undefined;
+const redisUrl = process.env['REDIS_URL'];
+if (redisUrl) {
+  try {
+    const redis = createRedisClients(redisUrl);
+    bus = new RedisBus(redis.publisher, redis.subscriber);
+    usageMeter = new RedisUsageMeter(redis.counters);
+    // Revocations (logout / revoke-all / member removal) publish here so every instance applies
+    // them instantly — closes the non-sticky-routing gap without waiting for tenant re-hydrate.
+    controlPublish = (msg) => redis.publisher.publish('glance:control', msg);
+    controlSubscribe = (cb) => redis.subscriber.subscribe('glance:control', cb);
+    logger.info('bus + AI usage meter + revocation control channel: Redis (multi-instance)');
+  } catch (err) {
+    logger.warn('REDIS_URL set but redis unavailable — using in-process bus + meter', {
+      error: err instanceof Error ? err.message : String(err),
+    });
+  }
+}
+
 const tokens = new TokenStore(resolve(repoRoot, '.data', 'tokens'), kv);
 const oauth = new OAuthService(
   process.env['GLANCE_PUBLIC_URL'] ?? `http://localhost:${config.wsPort}`,
@@ -93,7 +118,7 @@ const billing = new BillingService(
 );
 // Self-serve account auth (signup/login/refresh) issues runtime session tokens; OAuth `state`
 // is Postgres-backed so a provider callback can complete on any instance.
-const sessionStore = new SessionStore(kv);
+const sessionStore = new SessionStore(kv, controlPublish);
 const accounts = new AccountStore(kv);
 const auth = new AuthService(accounts, process.env['GLANCE_AUTH_SECRET'], sessionStore);
 const oauthState = new OAuthStateStore(600_000, kv);
@@ -135,23 +160,6 @@ function tokenAccessor(provider: ProviderId) {
   };
 }
 
-// Multi-instance fan-out + a fleet-wide AI usage meter when REDIS_URL is set; in-process
-// otherwise. `redis` is an optional dependency, loaded only on this path.
-let bus: Bus = new InProcessBus();
-let usageMeter: UsageMeter | undefined;
-const redisUrl = process.env['REDIS_URL'];
-if (redisUrl) {
-  try {
-    const redis = createRedisClients(redisUrl);
-    bus = new RedisBus(redis.publisher, redis.subscriber);
-    usageMeter = new RedisUsageMeter(redis.counters);
-    logger.info('bus + AI usage meter: Redis (multi-instance)');
-  } catch (err) {
-    logger.warn('REDIS_URL set but redis unavailable — using in-process bus + meter', {
-      error: err instanceof Error ? err.message : String(err),
-    });
-  }
-}
 const team = new TeamStore(resolve(repoRoot, '.data', 'teams'), kv);
 const push = new PushStore(resolve(repoRoot, '.data', 'push'), kv);
 
@@ -226,10 +234,16 @@ const hub = new Hub({
   usage: usageMeter,
   kv,
   sessions: sessionStore,
+  controlPublish,
 });
 
 // Account deletion wipes the Hub-owned stores (archives, roster, devices); the route wipes the rest.
 integrations.eraseTenantData = (t) => hub.eraseTenant(t);
+
+// Apply revocations broadcast by other instances over the Redis control channel (non-sticky
+// fleets); a no-op single-instance / in-process. The Hub routes each frame to the session store
+// or member denylist.
+controlSubscribe?.((raw) => hub.applyRemoteControl(raw));
 
 // Readiness: hold the instance out of rotation until Postgres (the durable store) is reachable and
 // migrated. File-store mode has no external dependency, so it's always ready.

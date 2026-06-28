@@ -28,6 +28,17 @@ describe('MemberDenylist', () => {
     expect(d.isRevoked('t1', 'm1', now + 30 * DAY + 1)).toBe(false); // token is dead anyway
   });
 
+  it('broadcasts revoke/restore to another instance via the control channel', () => {
+    const b = new MemberDenylist(); // remote instance — no shared kv, no hydrate
+    const a = new MemberDenylist(undefined, (raw) => b.applyRemote(JSON.parse(raw)));
+
+    a.revoke('t1', 'm1');
+    expect(b.isRevoked('t1', 'm1')).toBe(true); // remote saw the revoke instantly
+
+    a.restore('t1', 'm1');
+    expect(b.isRevoked('t1', 'm1')).toBe(false); // and the restore
+  });
+
   it('persists a revocation and re-hydrates it on a fresh instance', async () => {
     const kv = new MemoryKvStore();
     const a = new MemberDenylist(kv);

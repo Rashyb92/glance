@@ -34,6 +34,29 @@ describe('SessionStore', () => {
     expect(s.isActive('t1', 's1', 0, now + 7 * DAY + 1)).toBe(true); // entry expired
   });
 
+  it('broadcasts revocations to another instance via the control channel', () => {
+    const b = new SessionStore(); // remote instance — no shared kv, no hydrate
+    const a = new SessionStore(undefined, (raw) => b.applyRemote(JSON.parse(raw)));
+
+    a.revoke('t1', 's1');
+    expect(b.isActive('t1', 's1', 1000)).toBe(false); // remote saw the logout instantly
+
+    const epoch = 2_000_000;
+    a.revokeAll('t1', epoch);
+    expect(b.isActive('t1', 's2', epoch - 1)).toBe(false); // remote applied the same revoke-all epoch
+    expect(b.isActive('t1', 's2', epoch + 1)).toBe(true);
+  });
+
+  it('applyRemote is idempotent (safe to receive our own echo)', () => {
+    const s = new SessionStore();
+    s.applyRemote({ scope: 'session', tenant: 't1', id: 's1' });
+    s.applyRemote({ scope: 'session', tenant: 't1', id: 's1' }); // echo
+    expect(s.isActive('t1', 's1', 1000)).toBe(false);
+    s.applyRemote({ scope: 'session-all', tenant: 't1', ts: 5000 });
+    s.applyRemote({ scope: 'session-all', tenant: 't1', ts: 5000 }); // echo
+    expect(s.isActive('t1', 's9', 4999)).toBe(false);
+  });
+
   it('persists revocations and re-hydrates them on a fresh instance', async () => {
     const kv = new MemoryKvStore();
     const a = new SessionStore(kv);

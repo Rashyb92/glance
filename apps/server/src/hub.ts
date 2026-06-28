@@ -79,6 +79,9 @@ export interface HubDeps {
   /** Owner-session revocation store — share the same instance with the AuthService so logout /
    *  revoke-all and the gateway's session check operate on one state. Defaults to one from `kv`. */
   sessions?: SessionStore;
+  /** Publish a revocation onto the cross-instance control channel (Redis). When set, member
+   *  revocations broadcast to the fleet so non-sticky deployments revoke everywhere instantly. */
+  controlPublish?: (msg: string) => void;
 }
 
 /**
@@ -95,7 +98,7 @@ export class Hub {
 
   constructor(private readonly deps: HubDeps) {
     this.usage = deps.usage ?? new AiUsageMeter();
-    this.denylist = new MemberDenylist(deps.kv);
+    this.denylist = new MemberDenylist(deps.kv, deps.controlPublish);
     this.sessions = deps.sessions ?? new SessionStore(deps.kv);
     metrics.gauge('glance_tenants', () => this.tenants.size);
   }
@@ -222,6 +225,24 @@ export class Hub {
   /** Revoke every owner session for a tenant (sign out everywhere). */
   revokeAllSessions(tenant: string): void {
     this.sessions.revokeAll(tenant);
+  }
+
+  /**
+   * Apply a revocation broadcast from another instance (non-sticky fleets): parse the control
+   * message and route it to the session store or member denylist. Idempotent and non-broadcasting,
+   * so re-receiving our own publish (Redis echoes to the publisher) is harmless.
+   */
+  applyRemoteControl(raw: string): void {
+    let msg: { scope?: string; tenant?: string; id?: string; ts?: number };
+    try {
+      const parsed: unknown = JSON.parse(raw);
+      if (typeof parsed !== 'object' || parsed === null) return; // null / number / string frame
+      msg = parsed as typeof msg;
+    } catch {
+      return; // malformed control frame — ignore
+    }
+    if (msg.scope === 'member' || msg.scope === 'member-restore') this.denylist.applyRemote(msg);
+    else this.sessions.applyRemote(msg);
   }
 
   // --- push notifications (wearables / companion) — available to all plans ---

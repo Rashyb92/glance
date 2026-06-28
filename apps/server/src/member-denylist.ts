@@ -18,15 +18,19 @@ const REVOCATION_TTL_MS = 30 * 86_400_000;
  * When a {@link KvStore} is supplied, revocations are persisted (one key per tenant) and
  * re-hydrated on tenant load, so a force-logout survives an instance restart or tenant migration
  * under tenant-sticky routing. Entries self-expire at the token TTL so the list can't grow forever.
- * (For non-sticky deployments where one tenant's members span instances, additionally broadcast
- * revokes over the Bus — noted in the deploy runbook.)
+ * For non-sticky deployments where one tenant's members span instances, a `publish` callback
+ * (the Redis control channel, wired in main) broadcasts each revoke/restore so every instance
+ * applies it instantly via {@link applyRemote}.
  */
 export class MemberDenylist {
   /** tenant -> (memberId -> expiry epoch ms). The synchronous source of truth for isRevoked. */
   private readonly mem = new Map<string, Map<string, number>>();
   private readonly cache?: KvCache;
 
-  constructor(kv?: KvStore) {
+  constructor(
+    kv?: KvStore,
+    private readonly publish?: (msg: string) => void,
+  ) {
     if (kv) this.cache = new KvCache(kv);
   }
 
@@ -35,10 +39,26 @@ export class MemberDenylist {
     members.set(memberId, now + REVOCATION_TTL_MS);
     this.mem.set(tenant, members);
     this.persist(tenant);
+    this.publish?.(JSON.stringify({ scope: 'member', tenant, id: memberId }));
   }
 
   restore(tenant: string, memberId: string): void {
-    if (this.mem.get(tenant)?.delete(memberId)) this.persist(tenant);
+    if (this.mem.get(tenant)?.delete(memberId)) {
+      this.persist(tenant);
+      this.publish?.(JSON.stringify({ scope: 'member-restore', tenant, id: memberId }));
+    }
+  }
+
+  /** Apply a member revoke/restore received from another instance (no re-broadcast, no re-persist). */
+  applyRemote(msg: { scope?: string; tenant?: string; id?: string }, now = Date.now()): void {
+    if (!msg.tenant || !msg.id) return;
+    if (msg.scope === 'member') {
+      const members = this.mem.get(msg.tenant) ?? new Map<string, number>();
+      members.set(msg.id, now + REVOCATION_TTL_MS);
+      this.mem.set(msg.tenant, members);
+    } else if (msg.scope === 'member-restore') {
+      this.mem.get(msg.tenant)?.delete(msg.id);
+    }
   }
 
   isRevoked(tenant: string, memberId: string, now = Date.now()): boolean {

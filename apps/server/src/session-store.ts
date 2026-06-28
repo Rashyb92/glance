@@ -25,7 +25,10 @@ export class SessionStore {
   private readonly epoch = new Map<string, number>(); // tenant -> min issued-at (unix seconds)
   private readonly cache?: KvCache;
 
-  constructor(kv?: KvStore) {
+  constructor(
+    kv?: KvStore,
+    private readonly publish?: (msg: string) => void,
+  ) {
     if (kv) this.cache = new KvCache(kv);
   }
 
@@ -35,12 +38,26 @@ export class SessionStore {
     m.set(sessionId, now + REVOKE_TTL_MS);
     this.revoked.set(tenant, m);
     this.persist(tenant);
+    this.publish?.(JSON.stringify({ scope: 'session', tenant, id: sessionId }));
   }
 
   /** Revoke every session for a tenant (sign out everywhere / stolen-token kill switch). */
   revokeAll(tenant: string, nowSeconds = Math.floor(Date.now() / 1000)): void {
     this.epoch.set(tenant, nowSeconds);
     this.persist(tenant);
+    this.publish?.(JSON.stringify({ scope: 'session-all', tenant, ts: nowSeconds }));
+  }
+
+  /** Apply a revocation received from another instance (no re-broadcast, no re-persist). */
+  applyRemote(msg: { scope?: string; tenant?: string; id?: string; ts?: number }): void {
+    if (!msg.tenant) return;
+    if (msg.scope === 'session-all') {
+      this.epoch.set(msg.tenant, msg.ts ?? Math.floor(Date.now() / 1000));
+    } else if (msg.scope === 'session' && msg.id) {
+      const m = this.revoked.get(msg.tenant) ?? new Map<string, number>();
+      m.set(msg.id, Date.now() + REVOKE_TTL_MS);
+      this.revoked.set(msg.tenant, m);
+    }
   }
 
   /** A session token is active iff not logged out and issued at/after the tenant epoch. */

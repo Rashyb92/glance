@@ -62,3 +62,31 @@ describe('Hub — tenant isolation (no data leaks)', () => {
     expect(hub.exportAll('bob')).toEqual([]);
   });
 });
+
+describe('Hub — remote revocation control channel', () => {
+  it('routes a member frame to the denylist (instant revoke from another instance)', () => {
+    const { hub } = makeHub();
+    expect(hub.memberActive('t1', 'm1')).toBe(false); // not on roster anyway
+    hub.applyRemoteControl(JSON.stringify({ scope: 'member', tenant: 't1', id: 'm1' }));
+    expect(hub.memberActive('t1', 'm1')).toBe(false); // denylisted
+    hub.applyRemoteControl(JSON.stringify({ scope: 'member-restore', tenant: 't1', id: 'm1' }));
+    expect(hub.memberActive('t1', 'm1')).toBe(false); // restore clears the denylist (roster still empty)
+  });
+
+  it('routes session frames to the session store', () => {
+    const { hub } = makeHub();
+    hub.applyRemoteControl(JSON.stringify({ scope: 'session', tenant: 't1', id: 's1' }));
+    expect(hub.sessionActive('t1', 's1', 1000)).toBe(false); // logged out remotely
+    hub.applyRemoteControl(JSON.stringify({ scope: 'session-all', tenant: 't1', ts: 5000 }));
+    expect(hub.sessionActive('t1', 's2', 4999)).toBe(false); // issued before the remote epoch
+    expect(hub.sessionActive('t1', 's2', 6000)).toBe(true);
+  });
+
+  it('ignores malformed and non-object control frames without throwing', () => {
+    const { hub } = makeHub();
+    expect(() => hub.applyRemoteControl('{not json')).not.toThrow();
+    expect(() => hub.applyRemoteControl('null')).not.toThrow();
+    expect(() => hub.applyRemoteControl('42')).not.toThrow();
+    expect(hub.sessionActive('t1', 's1', 1000)).toBe(true); // nothing was applied
+  });
+});
