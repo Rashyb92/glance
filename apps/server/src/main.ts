@@ -14,6 +14,7 @@ import { TokenStore } from './integrations/oauth-token-store';
 import type { ProviderId } from './integrations/oauth-providers';
 import { BillingService } from './integrations/billing';
 import { EntitlementStore } from './integrations/entitlement-store';
+import { StripeEventLedger } from './integrations/stripe-webhook';
 import { AccountStore, AuthService } from './accounts';
 import { SessionStore } from './session-store';
 import { PairingStore } from './pairing-store';
@@ -86,6 +87,7 @@ const accounts = new AccountStore(kv);
 const auth = new AuthService(accounts, process.env['GLANCE_AUTH_SECRET'], sessionStore);
 const oauthState = new OAuthStateStore(600_000, kv);
 const pairing = new PairingStore(kv);
+const stripeLedger = new StripeEventLedger(kv);
 
 // OAuth + billing + auth routes mounted on the gateway. Each fails soft until its keys exist.
 const integrations: IntegrationDeps = {
@@ -98,6 +100,7 @@ const integrations: IntegrationDeps = {
   auth,
   oauthState,
   pairing,
+  stripeLedger,
 };
 
 /** Reads (and refreshes near expiry) a tenant's stored token for a provider. */

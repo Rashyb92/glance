@@ -1,5 +1,6 @@
 import { createHmac, timingSafeEqual } from 'node:crypto';
 import { isPlanId, type PlanId } from '@glance/core';
+import type { KvStore } from '../kv';
 
 /**
  * Verify a Stripe webhook signature (`Stripe-Signature` header). Stripe signs
@@ -38,8 +39,65 @@ export function verifyStripeSignature(
 }
 
 export interface StripeEventLite {
+  /** Stripe event id (`evt_…`) — used for idempotent processing. */
+  id?: string;
   type: string;
+  /** Event creation time (unix seconds) — used to drop out-of-order deliveries. */
+  created?: number;
   data: { object: Record<string, unknown> };
+}
+
+/**
+ * Idempotency + ordering for Stripe webhooks. A duplicate delivery (Stripe retries aggressively)
+ * is dropped by event id; an out-of-order delivery is dropped by comparing the event's `created`
+ * time against the last change applied for that tenant — so a late "subscription.updated" can't
+ * resurrect a plan a later "subscription.deleted" already cancelled. KV-backed so the guarantee
+ * holds across instances; in-memory fallback for dev / single-instance.
+ */
+export class StripeEventLedger {
+  private readonly seen = new Set<string>();
+  private readonly lastApplied = new Map<string, number>();
+
+  constructor(private readonly kv?: KvStore) {}
+
+  /** True if this event should be applied (not a duplicate, not stale). Records it either way. */
+  async shouldApply(
+    eventId: string | undefined,
+    tenant: string,
+    createdSec: number,
+  ): Promise<boolean> {
+    if (!eventId) return true; // nothing to dedupe on — apply best-effort
+    if (await this.isSeen(eventId)) return false; // duplicate delivery
+    await this.markSeen(eventId);
+    if (createdSec > 0) {
+      if (createdSec < (await this.getLast(tenant))) return false; // out-of-order
+      await this.setLast(tenant, createdSec);
+    }
+    return true;
+  }
+
+  private safe(tenant: string): string {
+    return tenant.replace(/[^a-zA-Z0-9_-]/g, '') || 'default';
+  }
+  private async isSeen(id: string): Promise<boolean> {
+    if (this.kv) return (await this.kv.get(`stripeevt:${id}`)) !== null;
+    return this.seen.has(id);
+  }
+  private async markSeen(id: string): Promise<void> {
+    if (this.kv) await this.kv.put(`stripeevt:${id}`, '1');
+    else this.seen.add(id);
+  }
+  private async getLast(tenant: string): Promise<number> {
+    if (this.kv) {
+      const raw = await this.kv.get(`stripelast:${this.safe(tenant)}`);
+      return raw ? Number(raw) || 0 : 0;
+    }
+    return this.lastApplied.get(tenant) ?? 0;
+  }
+  private async setLast(tenant: string, sec: number): Promise<void> {
+    if (this.kv) await this.kv.put(`stripelast:${this.safe(tenant)}`, String(sec));
+    else this.lastApplied.set(tenant, sec);
+  }
 }
 
 /**

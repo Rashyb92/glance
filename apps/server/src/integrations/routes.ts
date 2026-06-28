@@ -8,7 +8,12 @@ import type { OAuthService } from './oauth-service';
 import type { TokenStore } from './oauth-token-store';
 import type { BillingService } from './billing';
 import type { EntitlementStore } from './entitlement-store';
-import { planChangeFromEvent, verifyStripeSignature, type StripeEventLite } from './stripe-webhook';
+import {
+  planChangeFromEvent,
+  verifyStripeSignature,
+  StripeEventLedger,
+  type StripeEventLite,
+} from './stripe-webhook';
 import type { KvStore } from '../kv';
 import type { AuthService } from '../accounts';
 import type { PairingStore } from '../pairing-store';
@@ -28,6 +33,8 @@ export interface IntegrationDeps {
   oauthState: OAuthStateStore;
   /** Single-use device-pairing codes (so a pairing link carries a code, not the owner token). */
   pairing: PairingStore;
+  /** Stripe webhook idempotency + ordering ledger. */
+  stripeLedger: StripeEventLedger;
 }
 
 /**
@@ -312,7 +319,7 @@ export function handleIntegrationRoutes(
       return true;
     }
     readRaw(req)
-      .then((raw) => {
+      .then(async (raw) => {
         const sig = req.headers['stripe-signature'];
         if (!verifyStripeSignature(raw, typeof sig === 'string' ? sig : undefined, secret)) {
           send(400, { error: 'invalid signature' });
@@ -327,8 +334,16 @@ export function handleIntegrationRoutes(
         }
         const change = planChangeFromEvent(event);
         if (change) {
-          deps.entitlements.setPlan(change.tenant, change.plan, change.customerId);
-          logger.info('plan updated via stripe', { tenant: change.tenant, plan: change.plan });
+          // Idempotent + order-safe: drop duplicate / out-of-order deliveries before mutating plans.
+          if (await deps.stripeLedger.shouldApply(event.id, change.tenant, event.created ?? 0)) {
+            deps.entitlements.setPlan(change.tenant, change.plan, change.customerId);
+            logger.info('plan updated via stripe', { tenant: change.tenant, plan: change.plan });
+          } else {
+            logger.info('stripe event skipped (duplicate or out-of-order)', {
+              event: event.id,
+              tenant: change.tenant,
+            });
+          }
         }
         send(200, { received: true });
       })
