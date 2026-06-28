@@ -102,11 +102,14 @@ export function startGateway(
   control: GatewayControl,
   bus: Bus,
   integrations?: IntegrationDeps,
+  readiness?: () => Promise<boolean>,
 ): Gateway {
   // Per-IP token buckets: cheap protection against floods / accidental loops.
   const httpLimiter = new RateLimiter(intEnv('GLANCE_HTTP_BURST', 60), intEnv('GLANCE_HTTP_RPS', 20));
   const connLimiter = new RateLimiter(intEnv('GLANCE_CONN_BURST', 20), intEnv('GLANCE_CONN_RPS', 5));
-  const server = createServer((req, res) => handleHttp(req, res, control, httpLimiter, integrations));
+  const server = createServer((req, res) =>
+    handleHttp(req, res, control, httpLimiter, integrations, readiness),
+  );
   // Slowloris defense: cap how long a client may take to send headers / the full request.
   server.headersTimeout = intEnv('GLANCE_HEADERS_TIMEOUT_MS', 20_000);
   server.requestTimeout = intEnv('GLANCE_REQUEST_TIMEOUT_MS', 30_000);
@@ -254,6 +257,7 @@ function handleHttp(
   control: GatewayControl,
   limiter: RateLimiter,
   integrations?: IntegrationDeps,
+  readiness?: () => Promise<boolean>,
 ): void {
   const cors = { ...corsHeaders(req.headers.origin), ...securityHeaders() };
   const send = (code: number, body?: unknown): void => {
@@ -269,18 +273,33 @@ function handleHttp(
 
   const url = (req.url ?? '').split('?')[0] ?? '';
 
-  // Ops endpoints are unauthenticated by design (scraped by Prometheus / k8s probes).
+  // Metrics: open by default (Prometheus scrapes behind a private network); when METRICS_TOKEN is
+  // set, require it (Bearer or `?token=`) so a public deploy can lock the endpoint down.
   if (req.method === 'GET' && url === '/metrics') {
+    const metricsToken = process.env['METRICS_TOKEN'];
+    if (metricsToken && tokenFromReq(req) !== metricsToken) {
+      send(401, { error: 'unauthorized' });
+      return;
+    }
     res.writeHead(200, { 'content-type': 'text/plain; version=0.0.4', ...cors });
     res.end(metrics.render());
     return;
   }
+  // Liveness: the process is up. Always 200 — k8s/Fly restart the container on failure.
   if (req.method === 'GET' && url === '/health') {
     send(200, { ok: true });
     return;
   }
+  // Readiness: only accept traffic once the durable deps (Postgres) are reachable. 503 holds the
+  // instance out of rotation until they are.
   if (req.method === 'GET' && url === '/ready') {
-    send(200, { ready: true });
+    if (!readiness) {
+      send(200, { ready: true });
+      return;
+    }
+    void readiness()
+      .then((ok) => send(ok ? 200 : 503, { ready: ok }))
+      .catch(() => send(503, { ready: false }));
     return;
   }
 

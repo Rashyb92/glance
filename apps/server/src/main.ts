@@ -59,7 +59,18 @@ const databaseUrl = process.env['DATABASE_URL'];
 let kv: KvStore | undefined;
 if (databaseUrl) {
   try {
-    kv = new PgKvStore(createPgClient(databaseUrl));
+    const pg = new PgKvStore(createPgClient(databaseUrl));
+    kv = pg;
+    // Auto-migrate the backing table on boot so DB setup isn't a manual step. /ready stays 503
+    // until this succeeds (the probe reads the table).
+    void pg
+      .init()
+      .then(() => logger.info('glance_kv table ready'))
+      .catch((err) =>
+        logger.error('glance_kv migration failed', {
+          error: err instanceof Error ? err.message : String(err),
+        }),
+      );
     logger.info('durable stores: Postgres (settings, sessions, tokens, teams, push, entitlements)');
   } catch (err) {
     logger.warn('DATABASE_URL is set but pg is unavailable — using local file stores', {
@@ -217,7 +228,19 @@ const hub = new Hub({
   sessions: sessionStore,
 });
 
-const gateway = startGateway(config.wsPort, hub, bus, integrations);
+// Readiness: hold the instance out of rotation until Postgres (the durable store) is reachable and
+// migrated. File-store mode has no external dependency, so it's always ready.
+const readiness = async (): Promise<boolean> => {
+  if (!kv) return true;
+  try {
+    await kv.get('__ready_probe__');
+    return true;
+  } catch {
+    return false;
+  }
+};
+
+const gateway = startGateway(config.wsPort, hub, bus, integrations, readiness);
 
 // Auto-connect the default tenant so a local `pnpm dev` lights up immediately.
 hub.connect('default', config.channel, config.demo);

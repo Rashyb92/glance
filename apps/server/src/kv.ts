@@ -10,6 +10,8 @@ export interface KvStore {
   put(key: string, value: string): Promise<void>;
   delete(key: string): Promise<void>;
   list(prefix: string): Promise<Array<{ key: string; value: string }>>;
+  /** Optional one-time setup (e.g. create the backing table). */
+  init?(): Promise<void>;
 }
 
 export class MemoryKvStore implements KvStore {
@@ -43,6 +45,13 @@ export class PgKvStore implements KvStore {
     private readonly sql: SqlClient,
     private readonly table = 'glance_kv',
   ) {}
+
+  /** Create the backing table if absent — run once on boot so DB setup isn't a manual step. */
+  async init(): Promise<void> {
+    await this.sql.query(
+      `CREATE TABLE IF NOT EXISTS ${this.table} (key TEXT PRIMARY KEY, value TEXT NOT NULL)`,
+    );
+  }
 
   async get(key: string): Promise<string | null> {
     const r = await this.sql.query<{ value: string }>(
