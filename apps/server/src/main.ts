@@ -18,6 +18,9 @@ import { StripeEventLedger } from './integrations/stripe-webhook';
 import { AccountStore, AuthService } from './accounts';
 import { SessionStore } from './session-store';
 import { PairingStore } from './pairing-store';
+import { AdminAuth } from './admin/admin-auth';
+import { AuditLog } from './admin/audit-log';
+import type { AdminDeps } from './admin/admin-routes';
 import { OAuthStateStore, type IntegrationDeps } from './integrations/routes';
 import { TeamStore } from './team-store';
 import { PushStore, type PushPlatform } from './push-store';
@@ -240,6 +243,29 @@ const hub = new Hub({
 // Account deletion wipes the Hub-owned stores (archives, roster, devices); the route wipes the rest.
 integrations.eraseTenantData = (t) => hub.eraseTenant(t);
 
+// Full per-tenant data wipe (Hub-owned stores + OAuth tokens + entitlement). Used by the admin
+// console's erase / account-deletion actions; the self-serve account-deletion route composes the
+// same three steps inline.
+const eraseTenantFully = (tenant: string): void => {
+  hub.eraseTenant(tenant);
+  tokens.eraseTenant(tenant);
+  entitlements.eraseTenant(tenant);
+};
+
+// Admin/support console — operator-gated (GLANCE_ADMIN_TOKEN[S]); disabled/locked until a token is
+// set. Every action is recorded in the durable audit log.
+const adminAuth = new AdminAuth();
+const auditLog = new AuditLog(kv);
+const admin: AdminDeps = {
+  auth: adminAuth,
+  audit: auditLog,
+  snapshot: (t) => hub.adminSnapshot(t),
+  forceLogout: (t) => hub.revokeAllSessions(t),
+  revokeMember: (t, m) => hub.revokeMember(t, m),
+  eraseTenant: eraseTenantFully,
+  deleteAccountByEmail: (e) => auth.adminDeleteByEmail(e),
+};
+
 // Apply revocations broadcast by other instances over the Redis control channel (non-sticky
 // fleets); a no-op single-instance / in-process. The Hub routes each frame to the session store
 // or member denylist.
@@ -257,7 +283,7 @@ const readiness = async (): Promise<boolean> => {
   }
 };
 
-const gateway = startGateway(config.wsPort, hub, bus, integrations, readiness);
+const gateway = startGateway(config.wsPort, hub, bus, integrations, readiness, admin);
 
 // Auto-connect the default tenant so a local `pnpm dev` lights up immediately.
 hub.connect('default', config.channel, config.demo);
@@ -281,6 +307,7 @@ logger.info('Glance server is live', {
   hud: 'http://localhost:5173',
   dashboard: 'http://localhost:5174',
   auth: process.env['GLANCE_AUTH_SECRET'] ? 'token (multi-tenant)' : 'dev (default tenant)',
+  adminConsole: adminAuth.enabled ? `http://localhost:${config.wsPort}/admin` : 'disabled (set GLANCE_ADMIN_TOKEN)',
 });
 
 let shuttingDown = false;

@@ -15,6 +15,8 @@ import { canManageTeam } from '@glance/core';
 import type { Bus } from './bus';
 import type { PushSubscription } from './push-store';
 import { handleIntegrationRoutes, type IntegrationDeps } from './integrations/routes';
+import { handleAdminRoutes, type AdminDeps } from './admin/admin-routes';
+import { ADMIN_CONSOLE_HTML } from './admin/console-html';
 import { resolveActor, signMemberToken } from './auth';
 import { RateLimiter } from './ratelimit';
 import { logger } from './logger';
@@ -105,12 +107,13 @@ export function startGateway(
   bus: Bus,
   integrations?: IntegrationDeps,
   readiness?: () => Promise<boolean>,
+  admin?: AdminDeps,
 ): Gateway {
   // Per-IP token buckets: cheap protection against floods / accidental loops.
   const httpLimiter = new RateLimiter(intEnv('GLANCE_HTTP_BURST', 60), intEnv('GLANCE_HTTP_RPS', 20));
   const connLimiter = new RateLimiter(intEnv('GLANCE_CONN_BURST', 20), intEnv('GLANCE_CONN_RPS', 5));
   const server = createServer((req, res) =>
-    handleHttp(req, res, control, httpLimiter, integrations, readiness),
+    handleHttp(req, res, control, httpLimiter, integrations, readiness, admin),
   );
   // Slowloris defense: cap how long a client may take to send headers / the full request.
   server.headersTimeout = intEnv('GLANCE_HEADERS_TIMEOUT_MS', 20_000);
@@ -265,6 +268,7 @@ function handleHttp(
   limiter: RateLimiter,
   integrations?: IntegrationDeps,
   readiness?: () => Promise<boolean>,
+  admin?: AdminDeps,
 ): void {
   const cors = { ...corsHeaders(req.headers.origin), ...securityHeaders() };
   const send = (code: number, body?: unknown): void => {
@@ -309,9 +313,18 @@ function handleHttp(
       .catch(() => send(503, { ready: false }));
     return;
   }
+  // Admin/support console UI — a static page (just a login form); the operator pastes their token,
+  // which rides as a Bearer header to the operator-gated API below. The API stays locked when admin
+  // is unconfigured, so serving the page is harmless.
+  if (admin && req.method === 'GET' && (url === '/admin' || url === '/admin/')) {
+    res.writeHead(200, { 'content-type': 'text/html; charset=utf-8', ...cors });
+    res.end(ADMIN_CONSOLE_HTML);
+    return;
+  }
 
   // Rate-limit the data plane (ops endpoints above are intentionally exempt).
-  if (!limiter.allow(clientIp(req))) {
+  const ip = clientIp(req);
+  if (!limiter.allow(ip)) {
     metrics.inc('glance_http_ratelimited_total');
     send(429, { error: 'rate_limited' });
     return;
@@ -320,6 +333,13 @@ function handleHttp(
   // OAuth / billing routes — some are token-less (OAuth callback + Stripe webhook),
   // so they're handled before the tenant gate below.
   if (integrations && handleIntegrationRoutes(req, res, url, cors, integrations)) {
+    return;
+  }
+
+  // Admin/support console API — operator-gated (a separate trust domain), handled before the tenant
+  // gate since operators don't carry tenant tokens. Rate-limited like the data plane to slow token
+  // brute-force.
+  if (admin && handleAdminRoutes(req, res, url, cors, admin, ip)) {
     return;
   }
 

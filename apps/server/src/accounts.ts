@@ -175,6 +175,20 @@ export class AuthService {
   }
 
   /**
+   * Operator-initiated account deletion (no password) — for GDPR erasure or abuse handling via the
+   * admin/support console, where the operator authenticates separately. Returns the freed tenant id
+   * (so the caller can wipe its data) or null if no such account. Also revokes the account's sessions.
+   */
+  async adminDeleteByEmail(email: string): Promise<string | null> {
+    const clean = String(email ?? '').trim().toLowerCase();
+    const account = clean.length <= MAX_FIELD ? await this.accounts.get(clean) : null;
+    if (!account) return null;
+    await this.accounts.delete(clean);
+    this.sessions?.revokeAll(account.tenant);
+    return account.tenant;
+  }
+
+  /**
    * Issue a short-lived (30s) connect ticket so the long-lived token never rides in a WebSocket
    * URL. Preserves the caller's identity: a member gets a member ticket, an owner a session ticket.
    */

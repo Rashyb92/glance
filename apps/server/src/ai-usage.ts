@@ -7,6 +7,9 @@ import type { RedisCounters } from './redis';
  */
 export interface UsageMeter {
   tryConsume(tenant: string, cap: number, now?: Date): boolean | Promise<boolean>;
+  /** Units consumed today, for the admin snapshot / metrics. Optional: a backend that can't read
+   *  without consuming (e.g. the Redis meter) omits it, and callers treat absence as "unknown". */
+  used?(tenant: string, now?: Date): number | Promise<number>;
 }
 
 /**

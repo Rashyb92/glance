@@ -90,3 +90,23 @@ describe('Hub — remote revocation control channel', () => {
     expect(hub.sessionActive('t1', 's1', 1000)).toBe(true); // nothing was applied
   });
 });
+
+describe('Hub — admin snapshot', () => {
+  it('reports a cold tenant without materializing it, and a warm one with details', async () => {
+    const { hub } = makeHub();
+    const cold = await hub.adminSnapshot('ghost');
+    expect(cold.loaded).toBe(false);
+    expect(cold.plan).toBe('pro'); // default when no billing wired
+    expect(cold.connected).toBe(false);
+    expect(cold.archives).toBeNull(); // not materialized for a read
+    expect(cold.aiUsedToday).toBe(0); // in-memory meter can report
+    expect(cold.teamMembers).toBe(0);
+    expect(cold.settings).toBeNull();
+
+    hub.getSettings('warm'); // materialize the tenant
+    const warm = await hub.adminSnapshot('warm');
+    expect(warm.loaded).toBe(true);
+    expect(warm.archives).toBe(0); // resident → real count
+    expect(warm.settings?.surfaceThreshold).toBe(0.5);
+  });
+});

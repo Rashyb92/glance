@@ -48,6 +48,26 @@ export interface EntitlementResolver {
   hydrate?(tenant: string): Promise<void>;
 }
 
+/** Read-only operator view of a tenant for the admin/support console. No message content. */
+export interface AdminSnapshot {
+  tenant: string;
+  /** Was the tenant already resident in memory before this lookup (vs. cold in the durable store)? */
+  loaded: boolean;
+  plan: PlanId;
+  connected: boolean;
+  /** Live sources as `platform:channel`, if a session is running. */
+  channels: string[];
+  viewers: number | null;
+  /** AI calls consumed today, or null when the meter can't report without consuming (Redis mode). */
+  aiUsedToday: number | null;
+  aiCapPerDay: number;
+  /** Archived session count — null when the tenant isn't resident (not materialized for a read). */
+  archives: number | null;
+  teamMembers: number;
+  pushDevices: number;
+  settings: { surfaceThreshold: number; retentionDays: number; storeMessageText: boolean } | null;
+}
+
 export interface HubDeps {
   ai: AIProvider;
   bus: Bus;
@@ -243,6 +263,55 @@ export class Hub {
     }
     if (msg.scope === 'member' || msg.scope === 'member-restore') this.denylist.applyRemote(msg);
     else this.sessions.applyRemote(msg);
+  }
+
+  /**
+   * Read-only operator snapshot for the admin/support console. Warms the lightweight per-tenant
+   * stores (plan, roster, devices) so counts are accurate even when the tenant is cold, but does
+   * NOT materialize the session pipeline for a non-resident tenant — a lookup has no side effects
+   * beyond a durable read. Contains no message content.
+   */
+  async adminSnapshot(tenant: string): Promise<AdminSnapshot> {
+    const wasLoaded = this.tenants.has(tenant);
+    await Promise.all([
+      this.deps.entitlements?.hydrate?.(tenant),
+      this.deps.team?.hydrate(tenant),
+      this.deps.push?.hydrate(tenant),
+    ]);
+    const plan = this.planId(tenant);
+    const loaded = this.tenants.get(tenant);
+    const state = loaded?.controller.getState();
+    const settings = loaded?.settings.get();
+    return {
+      tenant,
+      loaded: wasLoaded,
+      plan,
+      connected: state?.connected ?? false,
+      channels: state?.channels.map((c) => `${c.platform}:${c.channel}`) ?? [],
+      viewers: state?.viewers ?? null,
+      aiUsedToday: await this.readUsage(tenant),
+      aiCapPerDay: PLANS[plan].limits.aiCallsPerDay,
+      archives: loaded ? loaded.storage.listSessions().length : null,
+      teamMembers: this.deps.team?.list(tenant).length ?? 0,
+      pushDevices: this.deps.push?.list(tenant).length ?? 0,
+      settings: settings
+        ? {
+            surfaceThreshold: settings.surfaceThreshold,
+            retentionDays: settings.retentionDays,
+            storeMessageText: settings.storeMessageText,
+          }
+        : null,
+    };
+  }
+
+  private async readUsage(tenant: string): Promise<number | null> {
+    const meter = this.usage;
+    if (typeof meter.used !== 'function') return null;
+    try {
+      return await meter.used(tenant);
+    } catch {
+      return null;
+    }
   }
 
   // --- push notifications (wearables / companion) — available to all plans ---

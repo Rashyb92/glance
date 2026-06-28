@@ -75,3 +75,17 @@ describe('AuthService.deleteAccount', () => {
     expect(await svc.login('user@example.com', 'hunter2hunter')).toEqual({ error: expect.any(String) });
   });
 });
+
+describe('AuthService.adminDeleteByEmail', () => {
+  it('deletes by email without a password (operator path) and frees the tenant', async () => {
+    const accounts = new AccountStore(new MemoryKvStore());
+    const svc = new AuthService(accounts, 'test-auth-secret');
+    const signed = await svc.signup('ops@example.com', 'hunter2hunter');
+    if (!('token' in signed)) throw new Error('signup failed');
+
+    expect(await svc.adminDeleteByEmail('ghost@example.com')).toBeNull(); // unknown account
+    expect(await svc.adminDeleteByEmail('OPS@example.com')).toBe(signed.tenant); // normalized, no password
+    expect(await accounts.get('ops@example.com')).toBeNull();
+    expect(await svc.login('ops@example.com', 'hunter2hunter')).toEqual({ error: expect.any(String) });
+  });
+});
