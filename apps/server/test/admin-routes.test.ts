@@ -6,6 +6,7 @@ import { AdminAuth } from '../src/admin/admin-auth';
 import { AuditLog } from '../src/admin/audit-log';
 import { MemoryKvStore } from '../src/kv';
 import type { AdminSnapshot } from '../src/hub';
+import type { FunnelReport } from '../src/analytics/product-analytics';
 
 // Real HTTP test: start the gateway with an admin console wired and drive /api/admin via fetch.
 // The admin routes resolve before the tenant gate and never touch GatewayControl, so a stub is fine.
@@ -58,6 +59,11 @@ beforeAll(() => {
       calls.deleteByEmail.push(e);
       return Promise.resolve(e === 'known@x.com' ? 'tenant-123' : null);
     },
+    analyticsReport: () =>
+      Promise.resolve({
+        funnel: { signup: 3, activated: 2, engaged: 1, subscribed: 0 },
+        conversion: { activation: 67, engagement: 50, subscription: 0 },
+      }),
   };
   gw = startGateway(PORT, control, bus, undefined, undefined, admin);
 });
@@ -129,6 +135,14 @@ describe('admin console (HTTP)', () => {
       body: JSON.stringify({ email: 'ghost@x.com', confirm: 'ghost@x.com' }),
     });
     expect(miss.status).toBe(404);
+  });
+
+  it('returns the activation funnel report', async () => {
+    const r = await fetch(`${BASE}/api/admin/analytics`, { headers: AUTH });
+    expect(r.status).toBe(200);
+    const body = (await r.json()) as FunnelReport;
+    expect(body.funnel.signup).toBe(3);
+    expect(body.conversion.activation).toBe(67);
   });
 
   it('records actions in the audit log, attributed to the operator', async () => {

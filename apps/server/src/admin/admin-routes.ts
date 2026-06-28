@@ -2,6 +2,7 @@ import type { IncomingMessage, ServerResponse } from 'node:http';
 import type { AdminAuth } from './admin-auth';
 import type { AuditLog } from './audit-log';
 import type { AdminSnapshot } from '../hub';
+import type { FunnelReport } from '../analytics/product-analytics';
 
 /**
  * The operations the admin/support console drives. Wired in main from the Hub + AuthService, so the
@@ -20,6 +21,8 @@ export interface AdminDeps {
   eraseTenant: (tenant: string) => void;
   /** Delete an account by email (GDPR erasure); returns the freed tenant id, or null if not found. */
   deleteAccountByEmail: (email: string) => Promise<string | null>;
+  /** Privacy-respecting funnel report (distinct-tenant counts + conversion). */
+  analyticsReport: () => Promise<FunnelReport>;
 }
 
 const MAX_ADMIN_BODY = 16 * 1024;
@@ -62,6 +65,15 @@ export function handleAdminRoutes(
       .list({ tenant, limit })
       .then((entries) => send(200, { entries }))
       .catch(() => send(500, { error: 'audit read failed' }));
+    return true;
+  }
+
+  // GET /api/admin/analytics — privacy-respecting activation funnel (no message content).
+  if (url === '/api/admin/analytics' && req.method === 'GET') {
+    void admin
+      .analyticsReport()
+      .then((report) => send(200, report))
+      .catch(() => send(500, { error: 'analytics read failed' }));
     return true;
   }
 

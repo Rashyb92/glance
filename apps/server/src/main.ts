@@ -21,6 +21,7 @@ import { PairingStore } from './pairing-store';
 import { AdminAuth } from './admin/admin-auth';
 import { AuditLog } from './admin/audit-log';
 import type { AdminDeps } from './admin/admin-routes';
+import { ProductAnalytics } from './analytics/product-analytics';
 import { OAuthStateStore, type IntegrationDeps } from './integrations/routes';
 import { TeamStore } from './team-store';
 import { PushStore, type PushPlatform } from './push-store';
@@ -128,6 +129,10 @@ const oauthState = new OAuthStateStore(600_000, kv);
 const pairing = new PairingStore(kv);
 const stripeLedger = new StripeEventLedger(kv);
 
+// Privacy-respecting product analytics: a content-free activation funnel (no message text, no
+// emails — only the pseudonymous tenant id + milestone). Disable with GLANCE_ANALYTICS_DISABLED=1.
+const analytics = new ProductAnalytics(kv, process.env['GLANCE_ANALYTICS_DISABLED'] !== '1');
+
 // OAuth + billing + auth routes mounted on the gateway. Each fails soft until its keys exist.
 const integrations: IntegrationDeps = {
   oauth,
@@ -140,6 +145,7 @@ const integrations: IntegrationDeps = {
   oauthState,
   pairing,
   stripeLedger,
+  analytics,
 };
 
 /** Reads (and refreshes near expiry) a tenant's stored token for a provider. */
@@ -207,7 +213,11 @@ if (fcmProject && fcmEmail && fcmKey) {
 }
 const pushProvider = new RoutingPushProvider(pushRoutes, defaultPush);
 const notifier = new Notifier(push, pushProvider);
-bus.subscribe((tenant, message) => notifier.consider(tenant, message));
+bus.subscribe((tenant, message) => {
+  notifier.consider(tenant, message);
+  // First surfaced moment for a tenant = the "engaged" activation milestone (content-free).
+  if (message.type === 'message') analytics.reach(tenant, 'engaged');
+});
 
 // Live readers activate when the matching app is configured; otherwise tenants fall
 // back to IRC (Twitch) or the demo feed.
@@ -238,6 +248,7 @@ const hub = new Hub({
   kv,
   sessions: sessionStore,
   controlPublish,
+  analytics,
 });
 
 // Account deletion wipes the Hub-owned stores (archives, roster, devices); the route wipes the rest.
@@ -264,6 +275,7 @@ const admin: AdminDeps = {
   revokeMember: (t, m) => hub.revokeMember(t, m),
   eraseTenant: eraseTenantFully,
   deleteAccountByEmail: (e) => auth.adminDeleteByEmail(e),
+  analyticsReport: () => analytics.report(),
 };
 
 // Apply revocations broadcast by other instances over the Redis control channel (non-sticky

@@ -17,6 +17,7 @@ import {
 import type { KvStore } from '../kv';
 import type { AuthService } from '../accounts';
 import type { PairingStore } from '../pairing-store';
+import type { ProductAnalytics } from '../analytics/product-analytics';
 
 const MAX_BODY = 1024 * 1024; // 1 MB cap on integration bodies
 
@@ -37,6 +38,8 @@ export interface IntegrationDeps {
   stripeLedger: StripeEventLedger;
   /** Wipe a tenant's Hub-owned data (archives, roster, devices) on account deletion. */
   eraseTenantData?: (tenant: string) => void;
+  /** Privacy-respecting funnel analytics — records signup + subscription milestones. */
+  analytics?: ProductAnalytics;
 }
 
 /**
@@ -138,6 +141,7 @@ export function handleIntegrationRoutes(
         const result = isSignup
           ? await deps.auth.signup(email, password)
           : await deps.auth.login(email, password);
+        if (isSignup && 'token' in result) deps.analytics?.reach(result.tenant, 'signup');
         send('error' in result ? (isSignup ? 400 : 401) : 200, result);
       })
       .catch(() => send(400, { error: 'invalid request' }));
@@ -358,6 +362,7 @@ export function handleIntegrationRoutes(
           // Idempotent + order-safe: drop duplicate / out-of-order deliveries before mutating plans.
           if (await deps.stripeLedger.shouldApply(event.id, change.tenant, event.created ?? 0)) {
             deps.entitlements.setPlan(change.tenant, change.plan, change.customerId);
+            if (change.plan !== 'free') deps.analytics?.reach(change.tenant, 'subscribed');
             logger.info('plan updated via stripe', { tenant: change.tenant, plan: change.plan });
           } else {
             logger.info('stripe event skipped (duplicate or out-of-order)', {

@@ -30,6 +30,7 @@ import { logger } from './logger';
 import { metrics } from './metrics';
 import { MemberDenylist } from './member-denylist';
 import { SessionStore } from './session-store';
+import type { ProductAnalytics } from './analytics/product-analytics';
 
 interface Tenant {
   id: string;
@@ -102,6 +103,8 @@ export interface HubDeps {
   /** Publish a revocation onto the cross-instance control channel (Redis). When set, member
    *  revocations broadcast to the fleet so non-sticky deployments revoke everywhere instantly. */
   controlPublish?: (msg: string) => void;
+  /** Privacy-respecting funnel analytics — records the `activated` (first connect) milestone. */
+  analytics?: ProductAnalytics;
 }
 
 /**
@@ -133,6 +136,7 @@ export class Hub {
     return applyPlanLimits(this.tenant(tenant).settings.get(), this.planId(tenant));
   }
   connect(tenant: string, channel: string, demo: boolean, source: Platform = 'twitch'): SessionState {
+    this.deps.analytics?.reach(tenant, 'activated');
     return this.tenant(tenant).controller.connect(channel, demo, source);
   }
   /**
@@ -140,6 +144,7 @@ export class Hub {
    * clamped to the tenant's plan cap — this is where `maxConcurrentSessions` is enforced.
    */
   connectMany(tenant: string, sources: ChannelRef[], demo: boolean): SessionState {
+    this.deps.analytics?.reach(tenant, 'activated');
     const cap = Math.max(1, PLANS[this.planId(tenant)].limits.maxConcurrentSessions);
     return this.tenant(tenant).controller.connectMany(sources.slice(0, cap), demo);
   }
@@ -462,6 +467,7 @@ export class Hub {
         this.deps.youtubeLink?.hydrate?.(id),
         this.denylist.hydrate(id),
         this.sessions.hydrate(id),
+        this.deps.analytics?.hydrate(id),
       ])
         .then(([loaded]) => {
           if (loaded) {

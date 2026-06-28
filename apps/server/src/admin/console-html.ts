@@ -83,6 +83,12 @@ export const ADMIN_CONSOLE_HTML = `<!doctype html>
   </section>
 
   <section class="card">
+    <h2>Activation funnel</h2>
+    <button onclick="loadFunnel()">Load funnel</button>
+    <div id="funnel" style="margin-top:14px" class="muted">Not loaded.</div>
+  </section>
+
+  <section class="card">
     <h2>Audit log</h2>
     <div class="row">
       <div><label>Filter by tenant (optional)</label><input id="auditTenant" placeholder="tenant id" /></div>
@@ -164,6 +170,16 @@ export const ADMIN_CONSOLE_HTML = `<!doctype html>
     const email = $('delEmail').value.trim(); if (!email) return toast('Enter an email', true);
     if (prompt('Type the email to confirm IRREVERSIBLE account deletion:') !== email) return toast('Confirmation did not match', true);
     try { const r = await api('/api/admin/account/delete', 'POST', { email, confirm: email }); toast('Account deleted (tenant ' + r.tenant + ')'); } catch {}
+  }
+
+  async function loadFunnel() {
+    let r; try { r = await api('/api/admin/analytics'); } catch { return; }
+    const f = r.funnel || {}, c = r.conversion || {};
+    $('funnel').innerHTML = '<div class="grid">' +
+      stat('Signup', esc(f.signup)) + stat('Activated', esc(f.activated)) +
+      stat('Engaged', esc(f.engaged)) + stat('Subscribed', esc(f.subscribed)) + '</div>' +
+      '<p class="hint">activation ' + esc(c.activation) + '% · engagement ' + esc(c.engagement) +
+      '% · subscription ' + esc(c.subscription) + '%</p>';
   }
 
   async function loadAudit() {
