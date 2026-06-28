@@ -26,7 +26,7 @@ import {
   startCheckout,
   updateSettings,
 } from './api';
-import { pairLink, HUD_URL, COMPANION_URL } from './auth';
+import { requestPairLink, HUD_URL, COMPANION_URL } from './auth';
 import { ReplayView } from './ReplayView';
 import { AnalyticsView } from './AnalyticsView';
 
@@ -708,14 +708,18 @@ function TuningCard({ settings }: { settings: EngineSettings | null }): JSX.Elem
 
 function AccountCard(): JSX.Element {
   const [busy, setBusy] = useState(false);
-  const [copied, setCopied] = useState(false);
-  const copyPhone = async (): Promise<void> => {
+  const [pairLinks, setPairLinks] = useState<{ hud: string; companion: string } | null>(null);
+  const [pairing, setPairing] = useState(false);
+  const generatePair = async (): Promise<void> => {
+    setPairing(true);
     try {
-      await navigator.clipboard.writeText(pairLink(COMPANION_URL));
-      setCopied(true);
-      setTimeout(() => setCopied(false), 1500);
-    } catch {
-      /* clipboard unavailable */
+      const [hud, companion] = await Promise.all([
+        requestPairLink(HUD_URL),
+        requestPairLink(COMPANION_URL),
+      ]);
+      setPairLinks({ hud, companion });
+    } finally {
+      setPairing(false);
     }
   };
   const go = async (fn: () => Promise<string | null>): Promise<void> => {
@@ -780,19 +784,32 @@ function AccountCard(): JSX.Element {
       <div className="list-label" style={{ marginTop: 12 }}>
         Pair a device
       </div>
-      <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginTop: 6 }}>
-        <button
-          type="button"
-          className="connect-btn ghost"
-          onClick={() => window.open(pairLink(HUD_URL), '_blank', 'noopener')}
-        >
-          Open HUD
-        </button>
-        <button type="button" className="connect-btn ghost" onClick={() => void copyPhone()}>
-          {copied ? 'Copied ✓' : 'Copy phone link'}
-        </button>
-      </div>
-      <p className="hint-sm">Opens with a one-time token — paste the phone link on your device.</p>
+      <button
+        type="button"
+        className="connect-btn ghost"
+        disabled={pairing}
+        onClick={() => void generatePair()}
+      >
+        {pairing ? 'Generating…' : 'Generate pairing links'}
+      </button>
+      {pairLinks ? (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 6, marginTop: 8 }}>
+          <a className="pair-link" href={pairLinks.hud} target="_blank" rel="noopener noreferrer">
+            Open HUD overlay →
+          </a>
+          <input
+            className="pair-input"
+            readOnly
+            value={pairLinks.companion}
+            onFocus={(e) => e.currentTarget.select()}
+            aria-label="Companion pairing link"
+          />
+          <p className="hint-sm">
+            Single-use links (valid ~5 min). Open the HUD here; paste the companion link on your
+            phone.
+          </p>
+        </div>
+      ) : null}
     </Card>
   );
 }

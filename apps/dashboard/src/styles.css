@@ -114,6 +114,24 @@
 .signout:hover {
   color: var(--ink);
 }
+.pair-link {
+  color: var(--indigo);
+  font-size: 13px;
+  text-decoration: none;
+}
+.pair-link:hover {
+  text-decoration: underline;
+}
+.pair-input {
+  padding: 8px 10px;
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  color: var(--ink-soft);
+  font: inherit;
+  font-size: 12px;
+  width: 100%;
+}
 
 * {
   box-sizing: border-box;

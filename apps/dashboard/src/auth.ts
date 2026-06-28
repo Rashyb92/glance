@@ -92,11 +92,25 @@ export const HUD_URL =
 export const COMPANION_URL =
   (import.meta.env['VITE_COMPANION_URL'] as string | undefined) ?? 'http://localhost:5175';
 
-/** A paired-device link carrying the current session token (the device captures + strips it). */
-export function pairLink(base: string): string {
+/** Request a single-use pairing link for a device: fetches a one-time code (the owner token stays
+ *  in this POST's header) and appends it as `?pair=`. Falls back to the bare link if unavailable. */
+export async function requestPairLink(base: string): Promise<string> {
   const token = getToken();
-  if (!token) return base;
-  return `${base}${base.includes('?') ? '&' : '?'}token=${encodeURIComponent(token)}`;
+  try {
+    const res = await fetch(`${API_BASE}/api/auth/pair`, {
+      method: 'POST',
+      headers: token ? { authorization: `Bearer ${token}` } : {},
+    });
+    if (res.ok) {
+      const data = (await res.json()) as { code?: string };
+      if (data.code) {
+        return `${base}${base.includes('?') ? '&' : '?'}pair=${encodeURIComponent(data.code)}`;
+      }
+    }
+  } catch {
+    /* fall back to the bare link */
+  }
+  return base;
 }
 
 export type AuthResult = { ok: true } | { ok: false; error: string };

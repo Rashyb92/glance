@@ -11,6 +11,7 @@ import type { EntitlementStore } from './entitlement-store';
 import { planChangeFromEvent, verifyStripeSignature, type StripeEventLite } from './stripe-webhook';
 import type { KvStore } from '../kv';
 import type { AuthService } from '../accounts';
+import type { PairingStore } from '../pairing-store';
 
 const MAX_BODY = 1024 * 1024; // 1 MB cap on integration bodies
 
@@ -25,6 +26,8 @@ export interface IntegrationDeps {
   auth: AuthService;
   /** Short-lived OAuth `state` store — Postgres-backed for multi-instance callbacks. */
   oauthState: OAuthStateStore;
+  /** Single-use device-pairing codes (so a pairing link carries a code, not the owner token). */
+  pairing: PairingStore;
 }
 
 /**
@@ -169,6 +172,35 @@ export function handleIntegrationRoutes(
       return true;
     }
     send(200, deps.auth.issueTicket(actor));
+    return true;
+  }
+  // Issue a single-use device-pairing code (owner-scoped). The pairing link carries this code,
+  // not the owner token.
+  if (path === '/api/auth/pair' && req.method === 'POST') {
+    const tenant = resolveTenant(tokenFromReq(req));
+    if (!tenant) {
+      send(401, { error: 'unauthorized' });
+      return true;
+    }
+    void deps.pairing
+      .issue(tenant)
+      .then((code) => send(200, { code }))
+      .catch(() => send(500, { error: 'pairing unavailable' }));
+    return true;
+  }
+  // Unauthenticated: the one-time code *is* the credential. Exchange it for a device session token.
+  if (path === '/api/auth/pair/exchange' && req.method === 'POST') {
+    readJson(req)
+      .then(async (body) => {
+        const code = typeof body['code'] === 'string' ? body['code'] : '';
+        const tenant = await deps.pairing.consume(code);
+        if (!tenant) {
+          send(401, { error: 'invalid or expired pairing code' });
+          return;
+        }
+        send(200, deps.auth.refresh(tenant));
+      })
+      .catch(() => send(400, { error: 'invalid request' }));
     return true;
   }
 

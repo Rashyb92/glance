@@ -16,6 +16,7 @@ import { BillingService } from './integrations/billing';
 import { EntitlementStore } from './integrations/entitlement-store';
 import { AccountStore, AuthService } from './accounts';
 import { SessionStore } from './session-store';
+import { PairingStore } from './pairing-store';
 import { OAuthStateStore, type IntegrationDeps } from './integrations/routes';
 import { TeamStore } from './team-store';
 import { PushStore, type PushPlatform } from './push-store';
@@ -84,6 +85,7 @@ const sessionStore = new SessionStore(kv);
 const accounts = new AccountStore(kv);
 const auth = new AuthService(accounts, process.env['GLANCE_AUTH_SECRET'], sessionStore);
 const oauthState = new OAuthStateStore(600_000, kv);
+const pairing = new PairingStore(kv);
 
 // OAuth + billing + auth routes mounted on the gateway. Each fails soft until its keys exist.
 const integrations: IntegrationDeps = {
@@ -95,6 +97,7 @@ const integrations: IntegrationDeps = {
   dashboardUrl,
   auth,
   oauthState,
+  pairing,
 };
 
 /** Reads (and refreshes near expiry) a tenant's stored token for a provider. */

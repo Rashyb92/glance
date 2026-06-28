@@ -1,26 +1,14 @@
-// Device pairing token for the HUD. The creator opens this surface via a paired link
-// (`?token=…`) generated in the dashboard; the token is captured once, persisted to
-// sessionStorage, and stripped from the URL so it isn't left in the address bar/history.
-// A build-time VITE_GLANCE_TOKEN remains a dev / self-host fallback — never the prod path.
+// Device pairing for the HUD. The creator opens this surface via a paired link from the dashboard
+// (`?pair=<code>`); the one-time code is exchanged for this device's own session token, persisted
+// to sessionStorage, and stripped from the URL. (Legacy `?token=` links are still honored.) A
+// build-time VITE_GLANCE_TOKEN remains a dev / self-host fallback — never the prod path.
 const KEY = 'glance_token';
 
-// Consume a `?token=` from a paired link on first load: persist it, then remove it from the URL.
-function consumeUrlToken(): void {
-  try {
-    const url = new URL(window.location.href);
-    const token = url.searchParams.get('token');
-    if (token) {
-      sessionStorage.setItem(KEY, token);
-      url.searchParams.delete('token');
-      window.history.replaceState({}, document.title, url.toString());
-    }
-  } catch {
-    /* URL / sessionStorage unavailable */
-  }
-}
-consumeUrlToken();
+const API_BASE =
+  (import.meta.env['VITE_GLANCE_API_URL'] as string | undefined) ??
+  `http://localhost:${(import.meta.env['VITE_GLANCE_WS'] as string | undefined) ?? '8787'}`;
 
-/** The paired device token: from a prior paired link (sessionStorage), else the dev fallback. */
+/** The device's token: from a prior pairing (sessionStorage), else the dev fallback. */
 export function getToken(): string | undefined {
   try {
     const stored = sessionStorage.getItem(KEY);
@@ -31,9 +19,42 @@ export function getToken(): string | undefined {
   return (import.meta.env['VITE_GLANCE_TOKEN'] as string | undefined) || undefined;
 }
 
-const API_BASE =
-  (import.meta.env['VITE_GLANCE_API_URL'] as string | undefined) ??
-  `http://localhost:${(import.meta.env['VITE_GLANCE_WS'] as string | undefined) ?? '8787'}`;
+/** Exchange a one-time pairing code for this device's own session token, then persist it. */
+async function exchangePairCode(code: string): Promise<void> {
+  try {
+    const res = await fetch(`${API_BASE}/api/auth/pair/exchange`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ code }),
+    });
+    if (res.ok) {
+      const data = (await res.json()) as { token?: string };
+      if (data.token) sessionStorage.setItem(KEY, data.token);
+    }
+  } catch {
+    /* pairing failed — the device stays unauthenticated until re-paired */
+  }
+}
+
+/** On first load: consume a `?pair=` code (exchange) or a legacy `?token=`, then strip it from the URL. */
+function consumeUrlToken(): void {
+  try {
+    const url = new URL(window.location.href);
+    const pair = url.searchParams.get('pair');
+    const legacy = url.searchParams.get('token');
+    if (pair) {
+      url.searchParams.delete('pair');
+      window.history.replaceState({}, document.title, url.toString());
+      void exchangePairCode(pair);
+    } else if (legacy) {
+      sessionStorage.setItem(KEY, legacy);
+      url.searchParams.delete('token');
+      window.history.replaceState({}, document.title, url.toString());
+    }
+  } catch {
+    /* URL / sessionStorage unavailable */
+  }
+}
 
 /** Fetch a short-lived WS connect ticket — the device token stays in this POST's header, so only
  *  a 30s token ever appears in the WebSocket URL. Falls back to the stored token (dev). */
@@ -53,3 +74,5 @@ export async function wsTicket(): Promise<string | undefined> {
   }
   return token;
 }
+
+consumeUrlToken();
