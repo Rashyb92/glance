@@ -1,7 +1,7 @@
 import { createCipheriv, createECDH, createHmac, createPrivateKey, createSign, randomBytes } from 'node:crypto';
 import type { PushNotification } from '@glance/core';
 import type { PushProvider } from './push';
-import type { PushSubscription } from './push-store';
+import { isPublicEndpoint, type PushSubscription } from './push-store';
 
 /**
  * Real Web Push delivery (the background-notification path for the companion PWA and,
@@ -117,6 +117,7 @@ export class WebPushProvider implements PushProvider {
       await this.fallback.send(sub, note);
       return;
     }
+    if (!(await isPublicEndpoint(sub.endpoint))) return; // SSRF guard — re-resolves the host
     try {
       const body = encryptPayload(Buffer.from(JSON.stringify(note), 'utf8'), sub.keys.p256dh, sub.keys.auth);
       await this.fetchImpl(sub.endpoint, {

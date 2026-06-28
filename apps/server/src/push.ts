@@ -1,5 +1,5 @@
 import { pushNotificationFor, type PushNotification, type ServerMessage } from '@glance/core';
-import type { PushStore, PushSubscription } from './push-store';
+import { isPublicEndpoint, type PushStore, type PushSubscription } from './push-store';
 
 export interface PushProvider {
   send(sub: PushSubscription, note: PushNotification): Promise<void>;
@@ -19,6 +19,7 @@ export class DefaultPushProvider implements PushProvider {
 
   async send(sub: PushSubscription, note: PushNotification): Promise<void> {
     if (sub.platform === 'webhook') {
+      if (!(await isPublicEndpoint(sub.endpoint))) return; // SSRF guard — re-resolves the host
       try {
         await this.fetchImpl(sub.endpoint, {
           method: 'POST',

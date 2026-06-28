@@ -733,7 +733,9 @@ function AccountCard(): JSX.Element {
     }
   };
   const link = (provider: 'twitch' | 'youtube' | 'kick'): void => {
-    window.location.href = oauthStartUrl(provider);
+    void oauthStartUrl(provider).then((url) => {
+      window.location.href = url;
+    });
   };
   return (
     <Card title="Account & plan">

@@ -5,7 +5,7 @@ import type {
   SessionSummary,
   TeamMember,
 } from '@glance/core';
-import { API_BASE as BASE, getToken } from './auth';
+import { API_BASE as BASE, getToken, wsTicket } from './auth';
 
 // Control-plane + replay calls to the Glance server. Live state (session/settings)
 // is echoed back over the WebSocket, so the mutating helpers ignore the body.
@@ -77,9 +77,11 @@ export async function getAnalytics(): Promise<AnalyticsReport | null> {
 }
 
 /** URL the browser navigates to in order to link a streaming account (GET redirect flow). */
-export function oauthStartUrl(provider: 'twitch' | 'youtube' | 'kick'): string {
-  const token = getToken();
-  const q = token ? `?token=${encodeURIComponent(token)}` : '';
+export async function oauthStartUrl(provider: 'twitch' | 'youtube' | 'kick'): Promise<string> {
+  // Use a short-lived ticket so the long-lived token never rides in the OAuth-start URL (which
+  // hits browser history, the provider's referrer, etc.). The callback maps back via `state`.
+  const ticket = await wsTicket();
+  const q = ticket ? `?token=${encodeURIComponent(ticket)}` : '';
   return `${BASE}/api/oauth/${provider}/start${q}`;
 }
 
