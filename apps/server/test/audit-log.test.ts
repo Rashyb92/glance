@@ -23,12 +23,12 @@ describe('AuditLog', () => {
     expect(await log.list()).toEqual([]);
   });
 
-  it('caps the durable ring buffer at 2000, keeping the newest', async () => {
-    const log = new AuditLog(new MemoryKvStore());
-    for (let i = 0; i < 2050; i++) await log.record({ ts: i, operator: 'a', action: 'x' });
-    const all = await log.list({ limit: 5000 });
-    expect(all.length).toBe(2000);
-    expect(all[0]?.ts).toBe(2049); // newest retained
-    expect(all.at(-1)?.ts).toBe(50); // oldest 50 evicted
+  it('caps the durable ring buffer, keeping the newest', async () => {
+    const log = new AuditLog(new MemoryKvStore(), { cap: 5 });
+    for (let i = 0; i < 12; i++) await log.record({ ts: i, operator: 'a', action: 'x' });
+    const all = await log.list({ limit: 100 }); // limit is clamped to the cap
+    expect(all.length).toBe(5);
+    expect(all[0]?.ts).toBe(11); // newest retained
+    expect(all.at(-1)?.ts).toBe(7); // kept 7..11, older evicted
   });
 });

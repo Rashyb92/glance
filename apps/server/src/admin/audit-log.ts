@@ -18,8 +18,8 @@ export interface AuditEntry {
 }
 
 const KEY = 'admin:audit';
-/** Ring-buffer cap: the most-recent N actions are retained in the durable store. */
-const CAP = 2000;
+/** Default ring-buffer cap: the most-recent N actions are retained in the durable store. */
+const DEFAULT_CAP = 2000;
 
 /**
  * Append-only operator-action log for the admin/support console. Every action is emitted to the
@@ -31,7 +31,14 @@ const CAP = 2000;
  * deployment would move this to a dedicated append-only table / log stream.
  */
 export class AuditLog {
-  constructor(private readonly kv?: KvStore) {}
+  private readonly cap: number;
+
+  constructor(
+    private readonly kv?: KvStore,
+    opts: { cap?: number } = {},
+  ) {
+    this.cap = opts.cap && opts.cap > 0 ? Math.trunc(opts.cap) : DEFAULT_CAP;
+  }
 
   async record(entry: AuditEntry): Promise<void> {
     logger.info('admin action', { ...entry });
@@ -39,7 +46,7 @@ export class AuditLog {
     try {
       const list = await this.read();
       list.unshift(entry);
-      if (list.length > CAP) list.length = CAP;
+      if (list.length > this.cap) list.length = this.cap;
       await this.kv.put(KEY, JSON.stringify(list));
     } catch {
       /* durable append is best-effort — the logger line above is the backstop */
@@ -49,7 +56,7 @@ export class AuditLog {
   async list(opts: { tenant?: string; limit?: number } = {}): Promise<AuditEntry[]> {
     const all = await this.read();
     const filtered = opts.tenant ? all.filter((e) => e.tenant === opts.tenant) : all;
-    const limit = Math.min(Math.max(Math.trunc(opts.limit ?? 100), 1), CAP);
+    const limit = Math.min(Math.max(Math.trunc(opts.limit ?? 100), 1), this.cap);
     return filtered.slice(0, limit);
   }
 
