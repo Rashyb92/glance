@@ -93,6 +93,15 @@ export class AccountStore {
     }
     this.mem.set(k, account);
   }
+
+  async delete(email: string): Promise<void> {
+    const k = this.key(email);
+    if (this.kv) {
+      await this.kv.delete(k);
+      return;
+    }
+    this.mem.delete(k);
+  }
 }
 
 export class AuthService {
@@ -148,6 +157,21 @@ export class AuthService {
   /** Sign out everywhere — revoke every session for the account (stolen-token kill switch). */
   revokeAll(tenant: string): void {
     this.sessions?.revokeAll(tenant);
+  }
+
+  /**
+   * Delete an account after re-authenticating with its password. Returns the freed tenant id (so
+   * the caller can wipe its data), or null on bad credentials. Also revokes the account's sessions.
+   */
+  async deleteAccount(email: string, password: string): Promise<string | null> {
+    const clean = String(email ?? '').trim().toLowerCase();
+    const account = clean.length <= MAX_FIELD ? await this.accounts.get(clean) : null;
+    const stored = account?.passwordHash ?? (await this.dummyHash());
+    const ok = await verifyPassword(typeof password === 'string' ? password : '', stored);
+    if (!account || !ok) return null;
+    await this.accounts.delete(clean);
+    this.sessions?.revokeAll(account.tenant);
+    return account.tenant;
   }
 
   /**

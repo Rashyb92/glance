@@ -228,6 +228,9 @@ const hub = new Hub({
   sessions: sessionStore,
 });
 
+// Account deletion wipes the Hub-owned stores (archives, roster, devices); the route wipes the rest.
+integrations.eraseTenantData = (t) => hub.eraseTenant(t);
+
 // Readiness: hold the instance out of rotation until Postgres (the durable store) is reachable and
 // migrated. File-store mode has no external dependency, so it's always ready.
 const readiness = async (): Promise<boolean> => {

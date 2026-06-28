@@ -1,4 +1,4 @@
-import { mkdirSync, renameSync, writeFileSync } from 'node:fs';
+import { mkdirSync, renameSync, rmSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { decryptSecret, encryptSecret } from './oauth-crypto';
 import type { ProviderId } from './oauth-providers';
@@ -70,6 +70,20 @@ export class TokenStore {
    *  authenticated reader (EventSub / YouTube) instead of falling back to IRC/demo. No-op for files. */
   async hydrate(tenant: string, provider: ProviderId): Promise<void> {
     if (this.cache) await this.cache.hydrate(this.keyFor(tenant, provider));
+  }
+
+  /** Delete all of a tenant's stored tokens (account deletion). */
+  eraseTenant(tenant: string): void {
+    for (const provider of ['twitch', 'youtube', 'kick'] as const) {
+      if (this.cache) this.cache.remove(this.keyFor(tenant, provider));
+      else {
+        try {
+          rmSync(this.fileFor(tenant, provider));
+        } catch {
+          /* already gone */
+        }
+      }
+    }
   }
 
   private safe(tenant: string): string {

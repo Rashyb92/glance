@@ -35,6 +35,8 @@ export interface IntegrationDeps {
   pairing: PairingStore;
   /** Stripe webhook idempotency + ordering ledger. */
   stripeLedger: StripeEventLedger;
+  /** Wipe a tenant's Hub-owned data (archives, roster, devices) on account deletion. */
+  eraseTenantData?: (tenant: string) => void;
 }
 
 /**
@@ -179,6 +181,25 @@ export function handleIntegrationRoutes(
       return true;
     }
     send(200, deps.auth.issueTicket(actor));
+    return true;
+  }
+  // Account deletion (DSAR): re-authenticate with the password, then wipe every store + revoke sessions.
+  if (path === '/api/auth/account' && req.method === 'DELETE') {
+    readJson(req)
+      .then(async (body) => {
+        const email = typeof body['email'] === 'string' ? body['email'] : '';
+        const password = typeof body['password'] === 'string' ? body['password'] : '';
+        const tenant = await deps.auth.deleteAccount(email, password);
+        if (!tenant) {
+          send(401, { error: 'invalid email or password' });
+          return;
+        }
+        deps.eraseTenantData?.(tenant); // archives, roster, devices, sessions (Hub-owned)
+        deps.tokens.eraseTenant(tenant); // OAuth tokens
+        deps.entitlements.eraseTenant(tenant); // plan record
+        send(200, { ok: true });
+      })
+      .catch(() => send(400, { error: 'invalid request' }));
     return true;
   }
   // Issue a single-use device-pairing code (owner-scoped). The pairing link carries this code,

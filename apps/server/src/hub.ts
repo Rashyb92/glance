@@ -153,6 +153,24 @@ export class Hub {
   eraseSessions(tenant: string): number {
     return this.tenant(tenant).storage.eraseAll();
   }
+
+  /**
+   * Full data wipe for a tenant (account deletion): archives, roster, push devices; revoke its
+   * sessions and evict it from memory. (Tokens, entitlement and the account record are wiped by the
+   * route, which owns those stores.) Wiping the roster also invalidates member tokens (memberActive).
+   */
+  eraseTenant(tenant: string): void {
+    this.tenant(tenant).storage.eraseAll();
+    this.deps.team?.eraseTenant(tenant);
+    this.deps.push?.eraseTenant(tenant);
+    this.sessions.revokeAll(tenant);
+    const loaded = this.tenants.get(tenant);
+    if (loaded) {
+      loaded.controller.shutdown();
+      this.tenants.delete(tenant);
+    }
+    logger.info('erased tenant data', { tenant });
+  }
   /** Cross-session analytics — gated to plans with `advancedAnalytics`. */
   analytics(tenant: string): AnalyticsReport | null {
     if (!PLANS[this.planId(tenant)].limits.advancedAnalytics) return null;

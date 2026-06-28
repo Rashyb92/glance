@@ -1,4 +1,4 @@
-import { mkdirSync, renameSync, writeFileSync } from 'node:fs';
+import { mkdirSync, renameSync, rmSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { randomUUID } from 'node:crypto';
 import { lookup } from 'node:dns/promises';
@@ -39,6 +39,18 @@ export class PushStore {
   /** Warm a tenant's device list from the durable store on tenant load. No-op for files. */
   async hydrate(tenant: string): Promise<void> {
     if (this.cache) await this.cache.hydrate(`push:${this.safe(tenant)}`);
+  }
+
+  /** Delete a tenant's registered devices (account deletion). */
+  eraseTenant(tenant: string): void {
+    if (this.cache) this.cache.remove(`push:${this.safe(tenant)}`);
+    else {
+      try {
+        rmSync(this.fileFor(tenant));
+      } catch {
+        /* already gone */
+      }
+    }
   }
 
   subscribe(

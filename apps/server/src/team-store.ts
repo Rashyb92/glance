@@ -1,4 +1,4 @@
-import { mkdirSync, renameSync, writeFileSync } from 'node:fs';
+import { mkdirSync, renameSync, rmSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { randomUUID } from 'node:crypto';
 import { isTeamRole, type TeamMember, type TeamRole } from '@glance/core';
@@ -29,6 +29,18 @@ export class TeamStore {
    *  so a fresh instance can't overwrite the real roster with a cold (empty) one. No-op for files. */
   async hydrate(tenant: string): Promise<void> {
     if (this.cache) await this.cache.hydrate(`team:${this.safe(tenant)}`);
+  }
+
+  /** Delete a tenant's roster (account deletion). */
+  eraseTenant(tenant: string): void {
+    if (this.cache) this.cache.remove(`team:${this.safe(tenant)}`);
+    else {
+      try {
+        rmSync(this.fileFor(tenant));
+      } catch {
+        /* already gone */
+      }
+    }
   }
 
   invite(

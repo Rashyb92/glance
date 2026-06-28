@@ -1,4 +1,4 @@
-import { mkdirSync, renameSync, writeFileSync } from 'node:fs';
+import { mkdirSync, renameSync, rmSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { DEFAULT_PLAN, type PlanId } from '@glance/core';
 import { KvCache, readFileOrNull } from '../kv-cache';
@@ -32,6 +32,18 @@ export class EntitlementStore {
   /** Eagerly warm a tenant's plan from the durable store (cold-start correctness). No-op for files. */
   async hydrate(tenant: string): Promise<void> {
     if (this.cache) await this.cache.hydrate(`ent:${this.safe(tenant)}`);
+  }
+
+  /** Delete a tenant's plan record (account deletion). */
+  eraseTenant(tenant: string): void {
+    if (this.cache) this.cache.remove(`ent:${this.safe(tenant)}`);
+    else {
+      try {
+        rmSync(this.fileFor(tenant));
+      } catch {
+        /* already gone */
+      }
+    }
   }
 
   customerId(tenant: string): string | undefined {

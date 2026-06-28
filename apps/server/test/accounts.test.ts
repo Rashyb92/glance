@@ -59,3 +59,19 @@ describe('AuthService', () => {
     expect(session.token.length).toBeGreaterThan(0);
   });
 });
+
+describe('AuthService.deleteAccount', () => {
+  it('deletes after re-auth, frees the tenant, and rejects bad credentials', async () => {
+    const accounts = new AccountStore(new MemoryKvStore());
+    const svc = new AuthService(accounts, 'test-auth-secret');
+    const signed = await svc.signup('user@example.com', 'hunter2hunter');
+    if (!('token' in signed)) throw new Error('signup failed');
+
+    expect(await svc.deleteAccount('user@example.com', 'wrong')).toBeNull(); // bad password
+    expect(await accounts.get('user@example.com')).not.toBeNull(); // intact after a bad attempt
+
+    expect(await svc.deleteAccount('user@example.com', 'hunter2hunter')).toBe(signed.tenant);
+    expect(await accounts.get('user@example.com')).toBeNull(); // record gone
+    expect(await svc.login('user@example.com', 'hunter2hunter')).toEqual({ error: expect.any(String) });
+  });
+});
