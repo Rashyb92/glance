@@ -14,6 +14,10 @@ export interface Storage {
   pruneOlderThan(cutoffMs: number): number;
   /** Delete every archive for a channel (right-to-erasure). Returns count removed. */
   deleteByChannel(channel: string): number;
+  /** Scrub a chatter's attributed content (moments) from every archive (DSAR). Returns archives changed. */
+  deleteByAuthor(author: string): number;
+  /** Delete every archive for this tenant (account / data deletion). Returns count removed. */
+  eraseAll(): number;
   /** Full export of every archived session (data portability). */
   exportAll(): SessionDetail[];
 }
@@ -72,6 +76,25 @@ export class FileStorage implements Storage {
     let removed = 0;
     for (const { file, detail } of this.readAll()) {
       if (detail.channel === channel && this.remove(file)) removed += 1;
+    }
+    return removed;
+  }
+
+  deleteByAuthor(author: string): number {
+    let changed = 0;
+    for (const { detail } of this.readAll()) {
+      if (scrubAuthor(detail, author)) {
+        this.saveSession(detail);
+        changed += 1;
+      }
+    }
+    return changed;
+  }
+
+  eraseAll(): number {
+    let removed = 0;
+    for (const { file } of this.readAll()) {
+      if (this.remove(file)) removed += 1;
     }
     return removed;
   }
@@ -215,9 +238,39 @@ export class KvStorage implements Storage {
     return removed;
   }
 
+  deleteByAuthor(author: string): number {
+    let changed = 0;
+    for (const detail of [...this.cache.values()]) {
+      if (scrubAuthor(detail, author)) {
+        this.saveSession(detail);
+        changed += 1;
+      }
+    }
+    return changed;
+  }
+
+  eraseAll(): number {
+    let removed = 0;
+    for (const detail of [...this.cache.values()]) {
+      this.deleteSession(detail.id);
+      removed += 1;
+    }
+    return removed;
+  }
+
   private keyFor(id: string): string {
     return `${this.prefix}${id.replace(/[^a-zA-Z0-9_-]/g, '')}`;
   }
+}
+
+/** Remove a chatter's attributed content (moments + top-moment) from a session. Returns true if changed. */
+function scrubAuthor(detail: SessionDetail, author: string): boolean {
+  const moments = detail.moments.filter((m) => m.author !== author);
+  const topMatches = detail.topMoment?.author === author;
+  if (moments.length === detail.moments.length && !topMatches) return false;
+  detail.moments = moments;
+  if (topMatches) detail.topMoment = null;
+  return true;
 }
 
 function toSummary(detail: SessionDetail): SessionSummary {

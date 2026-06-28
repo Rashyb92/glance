@@ -36,6 +36,8 @@ interface Tenant {
   controller: SessionController;
   settings: SettingsService;
   storage: Storage;
+  /** Last time this tenant was accessed — drives idle eviction. */
+  lastTouch: number;
 }
 
 /** Resolves a tenant's billing plan. The EntitlementStore implements this; when no
@@ -143,6 +145,14 @@ export class Hub {
   deleteByChannel(tenant: string, channel: string): number {
     return this.tenant(tenant).storage.deleteByChannel(channel);
   }
+  /** Scrub a chatter's attributed content from this tenant's archives (DSAR by author id). */
+  deleteByAuthor(tenant: string, author: string): number {
+    return this.tenant(tenant).storage.deleteByAuthor(author);
+  }
+  /** Erase all of this tenant's session archives ("delete my replay history"). */
+  eraseSessions(tenant: string): number {
+    return this.tenant(tenant).storage.eraseAll();
+  }
   /** Cross-session analytics — gated to plans with `advancedAnalytics`. */
   analytics(tenant: string): AnalyticsReport | null {
     if (!PLANS[this.planId(tenant)].limits.advancedAnalytics) return null;
@@ -224,6 +234,25 @@ export class Hub {
     }
   }
 
+  /**
+   * Evict idle, disconnected tenants so the in-memory map can't grow without bound. A tenant with
+   * a live session is never evicted; an evicted tenant is lazily re-created from the durable stores
+   * on next access. Returns the number evicted.
+   */
+  sweepIdleTenants(maxIdleMs = 30 * 60_000, now = Date.now()): number {
+    let evicted = 0;
+    for (const t of [...this.tenants.values()]) {
+      if (t.id === 'default') continue; // keep the auto-connected local/default tenant
+      if (t.controller.getState().connected) continue; // never evict a live session
+      if (now - t.lastTouch < maxIdleMs) continue;
+      t.controller.shutdown();
+      this.tenants.delete(t.id);
+      evicted += 1;
+    }
+    if (evicted > 0) logger.info('evicted idle tenants', { evicted });
+    return evicted;
+  }
+
   /** Gracefully archive every tenant's in-flight session. */
   async shutdown(): Promise<void> {
     for (const t of this.tenants.values()) {
@@ -257,7 +286,10 @@ export class Hub {
 
   private tenant(id: string): Tenant {
     const existing = this.tenants.get(id);
-    if (existing) return existing;
+    if (existing) {
+      existing.lastTouch = Date.now();
+      return existing;
+    }
 
     const storage = this.deps.makeStorage(id);
     const link = this.deps.twitchLink;
@@ -339,7 +371,7 @@ export class Hub {
     const retentionDays = settings.get().retentionDays;
     if (retentionDays > 0) storage.pruneOlderThan(Date.now() - retentionDays * 86_400_000);
 
-    const tenant: Tenant = { id, controller, settings, storage };
+    const tenant: Tenant = { id, controller, settings, storage, lastTouch: Date.now() };
     this.tenants.set(id, tenant);
     logger.info('tenant created', { tenant: id });
     return tenant;

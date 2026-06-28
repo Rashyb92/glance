@@ -253,6 +253,10 @@ retentionTimer.unref?.();
 const notifierSweep = setInterval(() => notifier.sweep(), 3_600_000);
 notifierSweep.unref?.();
 
+// Evict idle, disconnected tenants so the Hub's tenant map can't grow without bound.
+const tenantSweep = setInterval(() => hub.sweepIdleTenants(), 600_000);
+tenantSweep.unref?.();
+
 logger.info('Glance server is live', {
   aiProvider: ai.name,
   wsGateway: `ws://localhost:${config.wsPort}`,

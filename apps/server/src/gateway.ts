@@ -40,6 +40,8 @@ export interface GatewayControl {
   deleteReplay: (tenant: string, id: string) => void;
   exportAll: (tenant: string) => SessionDetail[];
   deleteByChannel: (tenant: string, channel: string) => number;
+  deleteByAuthor: (tenant: string, author: string) => number;
+  eraseSessions: (tenant: string) => number;
   analytics: (tenant: string) => AnalyticsReport | null;
   listTeam: (tenant: string) => TeamMember[] | null;
   inviteMember: (
@@ -468,8 +470,18 @@ function handleHttp(
     if (req.method === 'GET') return send(200, control.listSessions(tenant));
     if (req.method === 'DELETE') {
       const channel = queryParam(req.url, 'channel');
-      if (!channel) return send(400, { error: 'channel required' });
-      return send(200, { removed: control.deleteByChannel(tenant, channel) });
+      if (channel) return send(200, { removed: control.deleteByChannel(tenant, channel) });
+      if (queryParam(req.url, 'all') === '1') {
+        return send(200, { removed: control.eraseSessions(tenant) }); // DSAR: erase all archives
+      }
+      return send(400, { error: 'channel or all=1 required' });
+    }
+  }
+  // DSAR: scrub a chatter's attributed content from this tenant's archives.
+  if (url.startsWith('/api/author/')) {
+    const author = decodeURIComponent(url.slice('/api/author/'.length));
+    if (req.method === 'DELETE') {
+      return send(200, { changed: control.deleteByAuthor(tenant, author) });
     }
   }
   if (url.startsWith('/api/sessions/')) {

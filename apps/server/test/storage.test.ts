@@ -91,4 +91,26 @@ describe('FileStorage — retention, erasure, export', () => {
     expect(all.map((s) => s.id)).toEqual(['s2', 's1']);
     expect(all[0]?.moments.length).toBe(1); // full detail, not a summary
   });
+
+  it('scrubs a chatter by author id (DSAR), leaving others intact', () => {
+    store.saveSession({
+      ...detail('s1', 1000),
+      moments: [
+        { id: '1', author: 'whale', text: 'hi', score: 0.9, atSec: 1 },
+        { id: '2', author: 'other', text: 'yo', score: 0.5, atSec: 2 },
+      ],
+      topMoment: { author: 'whale', text: 'hi', score: 0.9 },
+    });
+    expect(store.deleteByAuthor('whale')).toBe(1);
+    const got = store.getSession('s1');
+    expect(got?.moments.map((m) => m.author)).toEqual(['other']);
+    expect(got?.topMoment).toBeNull(); // the top moment was the scrubbed chatter's
+  });
+
+  it('erases every archive (account / data deletion)', () => {
+    store.saveSession(detail('s1', 1000));
+    store.saveSession(detail('s2', 2000));
+    expect(store.eraseAll()).toBe(2);
+    expect(store.listSessions()).toEqual([]);
+  });
 });

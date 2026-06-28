@@ -40,6 +40,14 @@ describe('Hub — tenant isolation (no data leaks)', () => {
     expect(hub.getSettings('bob').surfaceThreshold).toBe(0.5); // default — unaffected by alice
   });
 
+  it('evicts idle, disconnected tenants (keeping default) and re-creates lazily', () => {
+    const { hub } = makeHub();
+    hub.getSettings('ten1'); // create a disconnected tenant
+    hub.getSettings('default'); // default is never evicted
+    expect(hub.sweepIdleTenants(0)).toBe(1); // ten1 evicted (not connected, idle)
+    expect(hub.getSettings('ten1').surfaceThreshold).toBe(0.5); // re-created from the durable store
+  });
+
   it('scopes broadcasts to the originating tenant', () => {
     const { hub, published } = makeHub();
     hub.updateSettings('alice', { surfaceThreshold: 0.8 });
