@@ -105,7 +105,10 @@ export class TwitchEventSubAdapter implements PlatformAdapter {
         void this.connect(url);
       }
     } else if (type === 'notification') {
-      if (envelope.metadata?.subscription_type === 'channel.chat.message' && envelope.payload?.event) {
+      if (
+        envelope.metadata?.subscription_type === 'channel.chat.message' &&
+        envelope.payload?.event
+      ) {
         this.backoffMs = 1000; // healthy traffic resets backoff
         this.handlers?.onMessage(eventSubToChatMessage(this.channel, envelope.payload.event));
       }
@@ -124,10 +127,13 @@ export class TwitchEventSubAdapter implements PlatformAdapter {
           'client-id': this.opts.clientId,
           'content-type': 'application/json',
         },
-        body: JSON.stringify(buildChatSubscription(this.ids.broadcasterId, this.ids.userId, sessionId)),
+        body: JSON.stringify(
+          buildChatSubscription(this.ids.broadcasterId, this.ids.userId, sessionId),
+        ),
       });
       if (res.ok) this.handlers?.onStatus?.({ state: 'connected' });
-      else this.handlers?.onStatus?.({ state: 'closed', reason: `subscribe failed (${res.status})` });
+      else
+        this.handlers?.onStatus?.({ state: 'closed', reason: `subscribe failed (${res.status})` });
     } catch (err) {
       this.handlers?.onStatus?.({ state: 'reconnecting', reason: (err as Error).message });
     }
@@ -198,7 +204,10 @@ export function buildChatSubscription(
 }
 
 /** Parse a `channel.chat.message` event payload into a normalized ChatMessage. */
-export function eventSubToChatMessage(channel: string, event: Record<string, unknown>): ChatMessage {
+export function eventSubToChatMessage(
+  channel: string,
+  event: Record<string, unknown>,
+): ChatMessage {
   const message = (event['message'] as { text?: string } | undefined) ?? {};
   const cheer = event['cheer'] as { bits?: number } | undefined;
   const bits = typeof cheer?.bits === 'number' ? cheer.bits : undefined;

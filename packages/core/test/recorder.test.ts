@@ -21,7 +21,14 @@ describe('SessionRecorder', () => {
     r.recordMessage(scored('hello there friends', 0.6), 1000);
     r.recordMessage(scored('take my bits', 0.95, 500, 'whale'), 6000);
     r.recordEvent(
-      { id: 'e', platform: 'twitch', channel: 'c', kind: 'raid', summary: 'raid 100', timestamp: 0 },
+      {
+        id: 'e',
+        platform: 'twitch',
+        channel: 'c',
+        kind: 'raid',
+        summary: 'raid 100',
+        timestamp: 0,
+      },
       11000,
     );
     r.observeChatters(42);

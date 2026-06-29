@@ -57,7 +57,11 @@ describe('parseChannels (unified multi-channel connect)', () => {
   it('skips blank entries and normalizes unknown platforms to twitch', () => {
     expect(
       parseChannels({
-        channels: [{ channel: '  ', platform: 'twitch' }, { channel: 'good', platform: 'mystery' }, { x: 1 }],
+        channels: [
+          { channel: '  ', platform: 'twitch' },
+          { channel: 'good', platform: 'mystery' },
+          { x: 1 },
+        ],
       }),
     ).toEqual([{ platform: 'twitch', channel: 'good' }]);
   });

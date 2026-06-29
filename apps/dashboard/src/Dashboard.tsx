@@ -82,7 +82,11 @@ export function Dashboard(): JSX.Element {
           <span className="brand-sub">Command Center</span>
         </div>
         <div className="cc-tabs">
-          <button type="button" className={view === 'live' ? 'on' : ''} onClick={() => setView('live')}>
+          <button
+            type="button"
+            className={view === 'live' ? 'on' : ''}
+            onClick={() => setView('live')}
+          >
             Live
           </button>
           <button
@@ -320,7 +324,9 @@ function ConnectBar({ session }: { session: SessionState | null }): JSX.Element 
               style={{ flex: 1 }}
               value={row.channel}
               spellCheck={false}
-              placeholder={i === 0 ? 'channel (e.g. xqc) — blank = demo only' : 'add another channel'}
+              placeholder={
+                i === 0 ? 'channel (e.g. xqc) — blank = demo only' : 'add another channel'
+              }
               onChange={(e) => setRow(i, { channel: e.target.value })}
               onKeyDown={(e) => {
                 if (e.key === 'Enter') void run(go);
@@ -515,7 +521,8 @@ function TuningCard({ settings }: { settings: EngineSettings | null }): JSX.Elem
           </div>
         </div>
         <p style={{ margin: '-4px 0 4px', fontSize: 11, opacity: 0.55 }}>
-          Live = real-time · Balanced ≈ 20/min · Calm ≈ 8/min. Donations and big moments always show.
+          Live = real-time · Balanced ≈ 20/min · Calm ≈ 8/min. Donations and big moments always
+          show.
         </p>
         <label className="tune-row">
           <span>
@@ -836,7 +843,9 @@ function TeamCard(): JSX.Element {
   if (loaded && members === null) {
     return (
       <Card title="Team">
-        <p className="hint-sm">Team seats are part of the Pro plan — upgrade to invite teammates.</p>
+        <p className="hint-sm">
+          Team seats are part of the Pro plan — upgrade to invite teammates.
+        </p>
       </Card>
     );
   }
@@ -865,10 +874,16 @@ function TeamCard(): JSX.Element {
         <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
           {list.map((m) => (
             <div key={m.id} style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 13 }}>
-              <span style={{ flex: 1, overflow: 'hidden', textOverflow: 'ellipsis' }}>{m.email}</span>
+              <span style={{ flex: 1, overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                {m.email}
+              </span>
               <span style={{ opacity: 0.6, textTransform: 'capitalize' }}>{m.role}</span>
               <span style={{ opacity: 0.4 }}>{m.status}</span>
-              <button type="button" className="connect-btn ghost" onClick={() => void makeLogin(m.id)}>
+              <button
+                type="button"
+                className="connect-btn ghost"
+                onClick={() => void makeLogin(m.id)}
+              >
                 Login link
               </button>
               <button

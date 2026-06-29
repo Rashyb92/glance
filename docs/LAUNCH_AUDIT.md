@@ -7,17 +7,17 @@ several MEDIUM/LOW items were identified; the table records each with its dispos
 
 ## Findings & disposition
 
-| ID | Sev | Finding | Status |
-| --- | --- | --- | --- |
-| H1 | High | Member login tokens were non-revocable (no TTL) — a removed teammate kept access. | **Fixed** — tokens carry a 30-day TTL and every member request/connection is checked against the live roster (`Hub.memberActive`), so removal revokes immediately. |
-| H2 | High | The push/webhook endpoint was server-fetched with no host checks → SSRF (cloud metadata, internal IPs). | **Fixed** — `isSafePushEndpoint` allows only public `https` and blocks loopback/private/CGNAT/link-local/metadata + IPv6 ULA (unit-tested). |
-| M1 | Med | `Notifier` per-tenant dedup/rate maps grew unbounded (slow leak). | **Fixed** — `Notifier.sweep()` evicts idle entries hourly. |
-| M2 | Med | Dev-open auth (no secret) gated only on `NODE_ENV==='production'`; a staging deploy could be wide open. | **Fixed** — fails closed unless `GLANCE_AUTH_SECRET` is set in any non-local `NODE_ENV`. |
-| M3 | Med | Stripe webhook never stored the customer id → the billing portal always failed. | **Fixed** — `planChangeFromEvent` captures `customer`; passed through `setPlan` (tested). |
-| M4 | Med | `parseChannels` built an unbounded intermediate array (bounded only by the 256 KB body). | **Fixed** — capped to 50 source channels. |
-| L1 | Low | `X-Forwarded-For` (when `GLANCE_TRUST_PROXY=1`) uses the left-most hop. | **Accepted** — documented: use behind exactly one trusted proxy. |
-| L2 | Low | `/metrics` is unauthenticated. | **Accepted** — acceptable when exposed only on the internal network; gate by network policy or a bearer token if public. |
-| L3 | Low | `pace` entitlement relies on `applyPlanLimits` always being called on read. | **Accepted** — holds today (Hub always clamps); defense-in-depth note. |
+| ID  | Sev  | Finding                                                                                                 | Status                                                                                                                                                             |
+| --- | ---- | ------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| H1  | High | Member login tokens were non-revocable (no TTL) — a removed teammate kept access.                       | **Fixed** — tokens carry a 30-day TTL and every member request/connection is checked against the live roster (`Hub.memberActive`), so removal revokes immediately. |
+| H2  | High | The push/webhook endpoint was server-fetched with no host checks → SSRF (cloud metadata, internal IPs). | **Fixed** — `isSafePushEndpoint` allows only public `https` and blocks loopback/private/CGNAT/link-local/metadata + IPv6 ULA (unit-tested).                        |
+| M1  | Med  | `Notifier` per-tenant dedup/rate maps grew unbounded (slow leak).                                       | **Fixed** — `Notifier.sweep()` evicts idle entries hourly.                                                                                                         |
+| M2  | Med  | Dev-open auth (no secret) gated only on `NODE_ENV==='production'`; a staging deploy could be wide open. | **Fixed** — fails closed unless `GLANCE_AUTH_SECRET` is set in any non-local `NODE_ENV`.                                                                           |
+| M3  | Med  | Stripe webhook never stored the customer id → the billing portal always failed.                         | **Fixed** — `planChangeFromEvent` captures `customer`; passed through `setPlan` (tested).                                                                          |
+| M4  | Med  | `parseChannels` built an unbounded intermediate array (bounded only by the 256 KB body).                | **Fixed** — capped to 50 source channels.                                                                                                                          |
+| L1  | Low  | `X-Forwarded-For` (when `GLANCE_TRUST_PROXY=1`) uses the left-most hop.                                 | **Accepted** — documented: use behind exactly one trusted proxy.                                                                                                   |
+| L2  | Low  | `/metrics` is unauthenticated.                                                                          | **Resolved** — gated by `GLANCE_METRICS_TOKEN` (bearer or `?token=`) when set; left open only when intentionally unset for internal-network scraping.              |
+| L3  | Low  | `pace` entitlement relies on `applyPlanLimits` always being called on read.                             | **Accepted** — holds today (Hub always clamps); defense-in-depth note.                                                                                             |
 
 ## What's solid (verified)
 
@@ -42,6 +42,10 @@ several MEDIUM/LOW items were identified; the table records each with its dispos
 
 Cleared for launch on the security spine. The two HIGH items (revocable member access, push
 SSRF) are fixed and tested; the remaining accepted items are operational notes, not blockers.
-Scale follow-ups (not blockers): move the push device store and team roster to Postgres/Redis
-with caching so the member-revocation check and notifier fan-out don't hit the filesystem per
-request at high tenant counts.
+
+Scale follow-ups (**since shipped**): every per-tenant store — push devices, team roster,
+sessions, settings, OAuth tokens, entitlements, accounts, analytics — now reads/writes through
+a Postgres KV layer (`glance_kv`, auto-migrated on boot) with a synchronous cache-aside view when
+`DATABASE_URL` is set, so the member-revocation check and notifier fan-out no longer hit the
+filesystem per request. Revocations additionally propagate across instances over a Redis control
+channel (`glance:control`), and idle tenants are evicted from memory on a timer.

@@ -1,4 +1,10 @@
-import { createHash, randomBytes, randomUUID, scrypt as scryptCb, timingSafeEqual } from 'node:crypto';
+import {
+  createHash,
+  randomBytes,
+  randomUUID,
+  scrypt as scryptCb,
+  timingSafeEqual,
+} from 'node:crypto';
 import { promisify } from 'node:util';
 import { signSessionToken, signMemberToken, type Actor } from './auth';
 import type { KvStore } from './kv';
@@ -115,12 +121,19 @@ export class AuthService {
   ) {}
 
   async signup(email: string, password: string): Promise<AuthSession | { error: string }> {
-    const clean = String(email ?? '').trim().toLowerCase();
+    const clean = String(email ?? '')
+      .trim()
+      .toLowerCase();
     if (clean.length > MAX_FIELD || !EMAIL_RE.test(clean)) return { error: 'invalid email' };
-    if (typeof password !== 'string' || password.length < MIN_PASSWORD || password.length > MAX_FIELD) {
+    if (
+      typeof password !== 'string' ||
+      password.length < MIN_PASSWORD ||
+      password.length > MAX_FIELD
+    ) {
       return { error: 'password must be at least 8 characters' };
     }
-    if (await this.accounts.get(clean)) return { error: 'an account with that email already exists' };
+    if (await this.accounts.get(clean))
+      return { error: 'an account with that email already exists' };
 
     const id = randomUUID();
     const account: Account = {
@@ -135,7 +148,9 @@ export class AuthService {
   }
 
   async login(email: string, password: string): Promise<AuthSession | { error: string }> {
-    const clean = String(email ?? '').trim().toLowerCase();
+    const clean = String(email ?? '')
+      .trim()
+      .toLowerCase();
     const account = clean.length <= MAX_FIELD ? await this.accounts.get(clean) : null;
     // Hash either way to keep timing uniform — resists account-enumeration via response time.
     const stored = account?.passwordHash ?? (await this.dummyHash());
@@ -164,7 +179,9 @@ export class AuthService {
    * the caller can wipe its data), or null on bad credentials. Also revokes the account's sessions.
    */
   async deleteAccount(email: string, password: string): Promise<string | null> {
-    const clean = String(email ?? '').trim().toLowerCase();
+    const clean = String(email ?? '')
+      .trim()
+      .toLowerCase();
     const account = clean.length <= MAX_FIELD ? await this.accounts.get(clean) : null;
     const stored = account?.passwordHash ?? (await this.dummyHash());
     const ok = await verifyPassword(typeof password === 'string' ? password : '', stored);
@@ -180,7 +197,9 @@ export class AuthService {
    * (so the caller can wipe its data) or null if no such account. Also revokes the account's sessions.
    */
   async adminDeleteByEmail(email: string): Promise<string | null> {
-    const clean = String(email ?? '').trim().toLowerCase();
+    const clean = String(email ?? '')
+      .trim()
+      .toLowerCase();
     const account = clean.length <= MAX_FIELD ? await this.accounts.get(clean) : null;
     if (!account) return null;
     await this.accounts.delete(clean);

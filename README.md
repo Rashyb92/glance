@@ -115,6 +115,28 @@ a call fails — the HUD never goes dark.
 
 ---
 
+## Accounts & auth
+
+Local `pnpm dev` needs no login: every client lands on a shared `default` tenant so
+the demo just works. The moment you run it as a real service, set
+**`GLANCE_AUTH_SECRET`** — without it every client collapses onto that one tenant, so
+the server **refuses to start** when `NODE_ENV` is set to anything but
+development/test.
+
+With a secret in place, users sign up and log in for real (`/api/auth/signup`,
+`/api/auth/login`). Glance issues HMAC-signed tokens: a 7-day owner **session** token
+and 30-day **member** tokens for teammates (each carrying a role). Tokens are
+revocable — a single **logout**, or **sign out everywhere** to kill a stolen token,
+applied on the next WebSocket connect and REST call (and instantly across every
+instance when `REDIS_URL` is set). Clients fetch a short-lived ticket before opening
+the socket, so the long-lived token never rides in a WebSocket URL, and a device can
+pair from a single-use link to get its own session.
+
+> `VITE_GLANCE_TOKEN` is a **dev-only** fallback for the dashboard/HUD. Never bake a
+> token into a production build — users authenticate at runtime.
+
+---
+
 ## Tune it live
 
 **In the Command Center** — server-owned, saved to `.data/settings.json`, applied
@@ -136,20 +158,28 @@ Every time you Disconnect or switch channels, Glance archives the session to
 headline stats and an AI-written recap. Open the **Replay** tab in the Command
 Center to browse past streams and replay any one of them end to end.
 
+Archiving is **privacy-first by default**: raw message text is not stored
+(`storeMessageText=false`) and archives age out after a week (`retentionDays=7`).
+The data-subject controls are first-class — scrub one chatter's attributed content by
+author id, erase a tenant's entire replay history, or delete an account outright
+(which re-authenticates, then wipes archives, roster, push devices, OAuth tokens, plan
+and the account record, and revokes its sessions).
+
 ---
 
 ## Scripts
 
-| Command           | What it does                                              |
-| ----------------- | -------------------------------------------------------- |
-| `pnpm dev`        | Run the server + HUD together (the demo)                 |
-| `pnpm server`     | Run just the pipeline / WebSocket gateway                |
-| `pnpm hud`        | Run just the browser HUD                                 |
-| `pnpm test`       | Run unit tests (the salience engine)                     |
-| `pnpm typecheck`  | Type-check every package                                 |
-| `pnpm lint`       | Lint the workspace                                       |
-| `pnpm format`     | Format with Prettier                                     |
-| `pnpm build`      | Production build of the HUD                              |
+| Command          | What it does                                                  |
+| ---------------- | ------------------------------------------------------------- |
+| `pnpm dev`       | Run the server + HUD together (the demo)                      |
+| `pnpm server`    | Run just the pipeline / WebSocket gateway                     |
+| `pnpm hud`       | Run just the browser HUD                                      |
+| `pnpm test`      | Run unit tests (the salience engine)                          |
+| `pnpm typecheck` | Type-check every package                                      |
+| `pnpm lint`      | Lint the workspace                                            |
+| `pnpm format`    | Format with Prettier                                          |
+| `pnpm build`     | Production build of the HUD                                   |
+| `pnpm verify`    | The full gate: typecheck · lint · format:check · test · build |
 
 ---
 
@@ -162,7 +192,7 @@ glance/
 │  ├─ platforms/   @glance/platforms PlatformAdapter seam — Twitch (IRC + EventSub), YouTube, Kick, Demo
 │  └─ ai/          @glance/ai        AIProvider seam — Claude provider + rule-based fallback
 └─ apps/
-   ├─ server/      @glance/server    Hub + WS/REST gateway, OAuth, Stripe, push, Postgres/Redis seams
+   ├─ server/      @glance/server    Hub + WS/REST gateway, accounts/auth, OAuth, Stripe, push, admin console, Postgres/Redis seams
    ├─ hud/         @glance/hud       React overlay + earbud/audio mode (the glasses preview)
    ├─ dashboard/   @glance/dashboard Command Center — connect, tune, replay, analytics, team, billing
    └─ companion/   @glance/companion Installable phone PWA — audio HUD, voice, background Web Push
@@ -185,7 +215,11 @@ business:
 - [`docs/BUSINESS_PLAN.md`](./docs/BUSINESS_PLAN.md) — business plan, go-to-market and marketing strategy, research-backed. Also `Glance_Business_Plan.docx`.
 - `apps/companion/twa/` and `apps/companion/ios/` — Android (TWA) and iOS (Capacitor) app-store scaffolds.
 
-Every change is gated by `pnpm verify` (typecheck + lint + test + build).
+Every change is gated by `pnpm verify` (typecheck · lint · format:check · test · build).
+GitHub Actions run the same verify job with coverage on every push and PR, plus a
+**Security** workflow (gitleaks secret scan, Trivy image scan, `pnpm audit`) and an
+**E2E** workflow (a Playwright smoke that boots the server). Ownership is enforced via
+CODEOWNERS.
 
 ---
 
@@ -193,7 +227,7 @@ Every change is gated by `pnpm verify` (typecheck + lint + test + build).
 
 - **Raw Flow** — every message flows, paced for readability. Low-salience lines dim.
 - **AI Assist** — individual messages step back; only AI summaries of the room show.
-- **Hybrid** *(the wedge)* — chat flows, but only what matters breaks through:
+- **Hybrid** _(the wedge)_ — chat flows, but only what matters breaks through:
   donations, raids, real questions, trends. This is attention management for creators.
 
 ---

@@ -1,0 +1,20 @@
+# Code ownership — GitHub auto-requests these reviewers on PRs touching matching paths,
+# and (with branch protection's "Require review from Code Owners") blocks merge until they approve.
+#
+# Replace @rasheedbailey with the correct GitHub handle(s) or a team (e.g. @your-org/maintainers).
+# Later entries win, so the specific rules below override the catch-all.
+
+* @rasheedbailey
+
+# CI, security, and supply-chain config — change with extra care.
+/.github/                 @rasheedbailey
+
+# Security-sensitive server surfaces.
+/apps/server/src/admin/        @rasheedbailey
+/apps/server/src/accounts.ts   @rasheedbailey
+/apps/server/src/auth.ts       @rasheedbailey
+/apps/server/src/gateway.ts    @rasheedbailey
+
+# Deploy + infra.
+/Dockerfile               @rasheedbailey
+/fly.toml                 @rasheedbailey

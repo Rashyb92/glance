@@ -61,26 +61,22 @@ export class KvCache {
     this.hydrated.add(key);
     // A swallowed failure here means the cache says "saved" but Postgres never got it —
     // log it so the data loss is observable/alertable rather than silent.
-    void this.kv
-      .put(key, value)
-      .catch((err) =>
-        logger.error('kv write-through failed — cached value not persisted', {
-          key,
-          error: err instanceof Error ? err.message : String(err),
-        }),
-      );
+    void this.kv.put(key, value).catch((err) =>
+      logger.error('kv write-through failed — cached value not persisted', {
+        key,
+        error: err instanceof Error ? err.message : String(err),
+      }),
+    );
   }
 
   remove(key: string): void {
     this.cache.delete(key);
     this.hydrated.add(key);
-    void this.kv
-      .delete(key)
-      .catch((err) =>
-        logger.error('kv delete write-through failed', {
-          key,
-          error: err instanceof Error ? err.message : String(err),
-        }),
-      );
+    void this.kv.delete(key).catch((err) =>
+      logger.error('kv delete write-through failed', {
+        key,
+        error: err instanceof Error ? err.message : String(err),
+      }),
+    );
   }
 }

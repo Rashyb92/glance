@@ -20,10 +20,9 @@ describe('normalizeEngineSettings', () => {
   });
 
   it('trims, lowercases, dedupes and caps keywords', () => {
-    expect(normalizeEngineSettings({ keywords: [' Food ', 'food', 'CHALLENGE'] }).keywords).toEqual([
-      'food',
-      'challenge',
-    ]);
+    expect(normalizeEngineSettings({ keywords: [' Food ', 'food', 'CHALLENGE'] }).keywords).toEqual(
+      ['food', 'challenge'],
+    );
   });
 
   it('accepts comma-separated keyword strings', () => {

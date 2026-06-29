@@ -135,7 +135,12 @@ export class Hub {
   getSettings(tenant: string): EngineSettings {
     return applyPlanLimits(this.tenant(tenant).settings.get(), this.planId(tenant));
   }
-  connect(tenant: string, channel: string, demo: boolean, source: Platform = 'twitch'): SessionState {
+  connect(
+    tenant: string,
+    channel: string,
+    demo: boolean,
+    source: Platform = 'twitch',
+  ): SessionState {
     this.deps.analytics?.reach(tenant, 'activated');
     return this.tenant(tenant).controller.connect(channel, demo, source);
   }

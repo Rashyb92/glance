@@ -64,10 +64,20 @@ export function evaluateSalience(scenario: EvalScenario): EvalResult {
       truePositives += 1;
     } else if (surfaced && !c.shouldSurface) {
       falsePositives += 1;
-      misses.push({ text: c.message.text, expectedSurface: false, score: scored.score, category: scored.category });
+      misses.push({
+        text: c.message.text,
+        expectedSurface: false,
+        score: scored.score,
+        category: scored.category,
+      });
     } else if (!surfaced && c.shouldSurface) {
       falseNegatives += 1;
-      misses.push({ text: c.message.text, expectedSurface: true, score: scored.score, category: scored.category });
+      misses.push({
+        text: c.message.text,
+        expectedSurface: true,
+        score: scored.score,
+        category: scored.category,
+      });
     }
 
     if (c.expectCategory) {
@@ -76,8 +86,10 @@ export function evaluateSalience(scenario: EvalScenario): EvalResult {
     }
   }
 
-  const precision = truePositives + falsePositives > 0 ? truePositives / (truePositives + falsePositives) : 1;
-  const recall = truePositives + falseNegatives > 0 ? truePositives / (truePositives + falseNegatives) : 1;
+  const precision =
+    truePositives + falsePositives > 0 ? truePositives / (truePositives + falsePositives) : 1;
+  const recall =
+    truePositives + falseNegatives > 0 ? truePositives / (truePositives + falseNegatives) : 1;
   const f1 = precision + recall > 0 ? (2 * precision * recall) / (precision + recall) : 0;
 
   return {

@@ -51,13 +51,15 @@ interface PlatformAdapter {
 Every source normalises to `ChatMessage` / `ChannelEvent`. The engine never knows
 or cares where a message originated.
 
-- **Today:** `TwitchAdapter` (anonymous IRC-over-WebSocket) and `DemoAdapter`.
-- **Add Kick / YouTube:** create `kick.ts` / `youtube.ts` implementing the same
-  interface, emit normalised messages, and register it in `apps/server/src/main.ts`.
-  Nothing else changes. `DemoAdapter` is the reference template.
-- **Production note:** swap the Twitch IRC client for EventSub behind the same
-  interface when you need scale and official guarantees — the rest of the system is
-  untouched.
+- **Today:** Twitch (anonymous IRC-over-WebSocket _and_ EventSub for linked
+  creators), YouTube and Kick adapters, plus `DemoAdapter` — every source behind the
+  one interface.
+- **Add another source:** create e.g. `tiktok.ts` implementing the same interface,
+  emit normalised messages, and register it in the Hub's adapter wiring. Nothing else
+  changes. `DemoAdapter` is the reference template.
+- **Scale note:** the Twitch reader already swaps IRC for EventSub
+  (`channel.chat.message`) behind this interface once a creator links their account —
+  the rest of the system is untouched.
 
 ### 2. `AIProvider` — the brain
 
@@ -105,30 +107,31 @@ Two independent layers, split by ownership:
   `normalizeEngineSettings`, the single validation boundary, so the rest of the
   system can trust the value is well-formed and in-bounds. Persisted behind a
   `SettingsStore` interface — `FileSettingsStore` writes atomically (temp-then-
-  rename) today; M3 swaps in a DB-backed store without touching callers — and
-  broadcast to every client as a `settings` message.
+  rename) for local/self-host; `KvSettingsStore` persists to Postgres at multi-tenant
+  scale, the swap proving out the seam without touching callers — and broadcast to
+  every client as a `settings` message.
 - **Overlay settings** (HUD `OverlaySettings`) — device-local: placement, scale,
   opacity, density, motion. Persisted in `localStorage`, never sent to the server.
 
-This mirrors the product split: the server owns *what matters*; each device owns
-*how it looks*.
+This mirrors the product split: the server owns _what matters_; each device owns
+_how it looks_.
 
 **Session archives** follow the same pattern. A finished stream is captured by the
 pure `SessionRecorder` (in `@glance/core`, unit-tested) — best moments, timeline,
 counts — and persisted behind a `Storage` interface. `FileStorage` writes one
-atomic JSON document per session today; SQLite/Postgres slot in at multi-tenant
-scale without touching callers. Replays are served over REST (`/api/sessions`),
-not the live socket.
+atomic JSON document per session for local/self-host; `KvStorage` keeps every tenant's
+archives in the shared Postgres KV table at scale, neither touching callers. Replays
+are served over REST (`/api/sessions`), not the live socket.
 
 ## Package responsibilities
 
-| Package             | Owns                                                                 | Depends on            |
-| ------------------- | ------------------------------------------------------------------- | --------------------- |
-| `@glance/core`      | Types, salience scoring, trend detection, mode policy               | nothing               |
-| `@glance/platforms` | `PlatformAdapter`, Twitch + Demo adapters, IRC parsing              | `core`, `ws`          |
-| `@glance/ai`        | `AIProvider`, Claude provider, rule-based provider, factory          | `core`, Anthropic SDK |
-| `@glance/server`    | Config, the engine pipeline, the WebSocket gateway, wiring          | all three packages    |
-| `@glance/hud`       | The peripheral overlay; consumes the feed (types only from `core`)  | `core` (types), React |
+| Package             | Owns                                                                                                                               | Depends on            |
+| ------------------- | ---------------------------------------------------------------------------------------------------------------------------------- | --------------------- |
+| `@glance/core`      | Types, salience scoring, trend detection, mode policy, sentiment/toxicity, plans                                                   | nothing               |
+| `@glance/platforms` | `PlatformAdapter`, Twitch (IRC + EventSub), YouTube, Kick, Demo adapters                                                           | `core`, `ws`          |
+| `@glance/ai`        | `AIProvider`, Claude provider, rule-based provider, factory                                                                        | `core`, Anthropic SDK |
+| `@glance/server`    | Engine pipeline, WS/REST gateway, multi-tenant Hub, accounts/auth + revocation, OAuth, Stripe, push, admin console, durable stores | all three packages    |
+| `@glance/hud`       | The peripheral overlay; consumes the feed (types only from `core`)                                                                 | `core` (types), React |
 
 Note the HUD depends on `@glance/core` for **types only** — it carries no runtime
 coupling to the engine, which keeps the render layer truly swappable.
@@ -145,16 +148,89 @@ future dashboard). It is deterministic, so it is trivially testable: see
 
 ## Mapping to the product roadmap
 
-| Blueprint phase            | In this codebase                                                  |
-| -------------------------- | ----------------------------------------------------------------- |
-| Phase 1 — Creator overlays | The whole core loop here: Twitch + Hybrid mode + peripheral HUD    |
-| Phase 2 — AI copilot       | `AIProvider` seam → swap rules for a learned salience model        |
+| Blueprint phase            | In this codebase                                                          |
+| -------------------------- | ------------------------------------------------------------------------- |
+| Phase 1 — Creator overlays | The whole core loop here: Twitch + Hybrid mode + peripheral HUD           |
+| Phase 2 — AI copilot       | `AIProvider` seam → swap rules for a learned salience model               |
 | Phase 4 — Creator OS       | `RenderTarget` seam → ship the HUD as a Meta Web App when the store opens |
 
-## What changes for production (not in scope here)
+## Multi-tenant, auth & revocation
 
-- **Twitch:** IRC → EventSub (`channel.chat.message`) with app auth + Conduits.
-- **Persistence & multi-tenant:** today the engine is in-memory and single-channel;
-  production adds per-creator sessions, storage, and horizontal scaling of the gateway.
-- **AuthN/Z & secrets:** real key management, per-creator OAuth, rate limiting.
-- **Observability:** structured logging, metrics, and tracing around the pipeline.
+The single-channel demo became a multi-tenant service without disturbing the seams.
+The **`Hub`** owns every tenant; each gets its own isolated pipeline (controller +
+settings + storage), and broadcasts are published to a `Bus` keyed by tenant. The
+in-memory tenant map can't grow without bound — `sweepIdleTenants` evicts idle,
+disconnected, non-`default` tenants on a timer, and an evicted tenant lazily
+re-hydrates from the durable store on next access.
+
+**Auth** is HMAC-signed tokens, resolved at the edge (`auth.ts`). A 7-day owner
+**session** token carries a per-login `sessionId` + issued-at; 30-day **member**
+tokens carry a role. `GLANCE_AUTH_SECRET` is required in production — the server
+refuses to boot when `NODE_ENV` is set without it, because absent a secret every
+client resolves to the shared `default` tenant. (Dev keeps that fallback on purpose.)
+
+Stateless tokens can't be recalled, so a **`SessionStore`** adds the kill switch: a
+per-session logout list plus a per-tenant "revoke-all" epoch (sign-out-everywhere /
+stolen-token). It's KV-persisted and re-hydrated on tenant load so revocations
+survive restarts, and the gateway enforces it (`sessionActive`) on both WebSocket
+connect and REST. Member tokens are revoked by removing the member from the roster or
+an explicit force-logout (a `MemberDenylist`, likewise persisted). On a non-sticky
+fleet a single instance's revocation would otherwise be invisible to the others, so
+when `REDIS_URL` is set every logout / revoke-all / member-revoke is published on a
+control channel (`glance:control`) and each instance applies it instantly
+(`Hub.applyRemoteControl`) — idempotent, and a no-op single-instance.
+
+Two seams keep the long-lived token out of harm's way. Clients exchange the token for
+a short-lived (30s) **WS ticket** (`POST /api/auth/ws-ticket`) so it never appears in
+a WebSocket URL, and a device **pairs** from a single-use code
+(`?pair=<code>` → `POST /api/auth/pair/exchange`) that mints the device its own
+session token.
+
+## Privacy & data-subject rights
+
+Archiving is private by default: `storeMessageText=false` and `retentionDays=7`, so a
+deployment that does nothing still keeps no raw text and ages data out within a week.
+The data-subject controls are first-class routes against the same `Storage` seam:
+scrub one chatter's attributed content by author id (`DELETE /api/author/:id`), erase
+a tenant's whole replay history (`DELETE /api/sessions?all=1`), and full account
+deletion (`DELETE /api/auth/account`) — which re-authenticates with a password, then
+wipes archives, roster, push devices, OAuth tokens, plan and the account record, and
+revokes the tenant's sessions. (Kick remains experimental, gated behind
+`GLANCE_ENABLE_KICK=1`.)
+
+## Admin / support console
+
+Operators get their own surface in a **separate trust domain** from tenant auth: a
+self-contained UI at `GET /admin` and an operator-gated API under `/api/admin/*` —
+a read-only, content-free tenant snapshot, force log-out, member revoke, erase a
+tenant (typed confirmation), delete an account by email (GDPR), the audit log, and the
+funnel report. Operator auth is `GLANCE_ADMIN_TOKEN` (one shared) or
+`GLANCE_ADMIN_TOKENS` (`name:token` pairs, for per-operator attribution), and it
+**fails closed** when unset. Every operator action is appended to a durable, capped
+audit log.
+
+## Product analytics
+
+A content-free activation **funnel** — signup → activated (first connect) → engaged
+(first surfaced moment) → subscribed — records only `{tenant, stage}`, where `tenant`
+is a pseudonymous UUID. No message text, no chatter identities, no email. The
+authoritative funnel is derived on demand from the durable per-tenant records
+(distinct-tenant accurate and restart-safe, so there's no aggregate counter to race);
+per-stage volume also feeds Prometheus counters (`glance_funnel_*_total`). Disable
+with `GLANCE_ANALYTICS_DISABLED=1`.
+
+## Observability & ops
+
+- **`GET /health`** — liveness, always 200.
+- **`GET /ready`** — 503 until Postgres is reachable and the `glance_kv` table has
+  auto-migrated, so an instance is held out of rotation until it can actually serve.
+- **`GET /metrics`** — Prometheus exposition, gated by `GLANCE_METRICS_TOKEN` when set.
+- The **Stripe webhook** is idempotent: events are de-duped by id and out-of-order
+  deliveries are dropped.
+
+## What changes for true scale (not in scope here)
+
+- **Twitch:** the production path is already EventSub (`channel.chat.message`) per
+  linked creator; app auth + Conduits land when fan-out demands it.
+- **Tracing:** structured logging and Prometheus metrics are in place; distributed
+  tracing across the pipeline is the next observability step.

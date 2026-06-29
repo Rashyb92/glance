@@ -16,7 +16,9 @@ describe('verifyStripeSignature', () => {
     expect(verifyStripeSignature(body, sign(body, secret, now), secret, 300, now)).toBe(true);
   });
   it('rejects a tampered body', () => {
-    expect(verifyStripeSignature(`${body}x`, sign(body, secret, now), secret, 300, now)).toBe(false);
+    expect(verifyStripeSignature(`${body}x`, sign(body, secret, now), secret, 300, now)).toBe(
+      false,
+    );
   });
   it('rejects a wrong secret', () => {
     expect(verifyStripeSignature(body, sign(body, 'other', now), secret, 300, now)).toBe(false);
@@ -59,7 +61,10 @@ describe('planChangeFromEvent', () => {
       planChangeFromEvent({ type: 'payment_intent.created', data: { object: { metadata: {} } } }),
     ).toBeNull();
     expect(
-      planChangeFromEvent({ type: 'invoice.paid', data: { object: { metadata: { plan: 'pro' } } } }),
+      planChangeFromEvent({
+        type: 'invoice.paid',
+        data: { object: { metadata: { plan: 'pro' } } },
+      }),
     ).toBeNull();
   });
 });

@@ -21,9 +21,13 @@ export function AnalyticsView(): JSX.Element {
 
   if (!loaded) return <div className="cc-empty">Loading analytics…</div>;
   if (!report)
-    return <div className="cc-empty">Advanced analytics is a Pro feature — upgrade to unlock it.</div>;
+    return (
+      <div className="cc-empty">Advanced analytics is a Pro feature — upgrade to unlock it.</div>
+    );
   if (report.sessions === 0)
-    return <div className="cc-empty">No archived sessions yet. Stream a little, then come back.</div>;
+    return (
+      <div className="cc-empty">No archived sessions yet. Stream a little, then come back.</div>
+    );
 
   return (
     <main className="grid">

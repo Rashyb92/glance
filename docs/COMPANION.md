@@ -6,24 +6,26 @@ that can hold a connection or receive a push is a render target. This doc covers
 
 ## The principle
 
-The salience engine already decides *what matters*. A wrist or a lock screen doesn't
+The salience engine already decides _what matters_. A wrist or a lock screen doesn't
 want the firehose — it wants the few moments worth an interruption. That filtering is
 the product, and it's device-independent. So the same intelligence reaches:
 
 - **Browser HUD** — live overlay (built).
 - **Audio / earbud** — spoken callouts + chimes (built; see the HUD's Earbud mode).
-- **Phone companion** — second screen + audio + push registration (native, planned).
+- **Phone companion** — second screen + audio + push registration (PWA built; Capacitor iOS/Android shells scaffolded).
 - **Apple Watch** — haptic alerts, a glance view, a complication (native, planned).
 
 ## What's built: the push seam
 
-| Piece | Where | Status |
-|-------|-------|--------|
+| Piece                          | Where                    | Status                                                                                                        |
+| ------------------------------ | ------------------------ | ------------------------------------------------------------------------------------------------------------- |
 | `pushNotificationFor(message)` | `@glance/core` `push.ts` | Built + tested — shapes the top priority callout and channel events into a notification; ignores the firehose |
-| `PushStore` | `apps/server` | Built + tested — per-tenant device registry (apns / fcm / webhook), validated + capped |
-| `Notifier` | `apps/server` | Built + tested — watches the Bus, pushes high-signal moments with dedup + per-tenant rate limit |
-| `DefaultPushProvider` | `apps/server` | Built — delivers `webhook` devices via HTTPS POST today; APNs/FCM log until wired |
-| Registration API | gateway | Built — `GET/POST /api/push…`, `DELETE /api/push/:id` |
+| `PushStore`                    | `apps/server`            | Built + tested — per-tenant device registry (apns / fcm / webhook), validated + capped                        |
+| `Notifier`                     | `apps/server`            | Built + tested — watches the Bus, pushes high-signal moments with dedup + per-tenant rate limit               |
+| `DefaultPushProvider`          | `apps/server`            | Built — delivers `webhook` devices via HTTPS POST; the fallback when no real provider is configured           |
+| `WebPushProvider` (VAPID)      | `apps/server`            | Built + tested — real background Web Push (RFC 8291) to the PWA/companion when `VAPID_*` keys are set         |
+| `ApnsProvider` / `FcmProvider` | `apps/server`            | Built — native iOS (APNs) + Android (FCM) delivery when keys are set; send-time DNS-SSRF guard on endpoints   |
+| Registration API               | gateway                  | Built — `GET/POST /api/push…`, `DELETE /api/push/:id`                                                         |
 
 Flow: `engine → controller → Bus.publish(tenant, msg)` → the `Notifier` (a Bus subscriber
 alongside the WebSocket fan-out) → `pushNotificationFor` → for each registered device,
@@ -47,10 +49,10 @@ plus a viewer/chatter glance and the top priority callout. Add-to-Home-Screen in
 (web manifest + service worker); run it at `http://localhost:5175` (`pnpm dev`). It's
 token-aware like the other clients, so it pairs to the creator's tenant.
 
-This is the **always-on client** the watch pairs with. What's left to extend it: true
-*background* push (screen off / app closed) needs Web Push (VAPID + a `WebPushProvider`
-behind the existing `PushProvider` interface) or the native shell with APNs/FCM. The
-foreground audio + glance + local notifications work today.
+This is the **always-on client** the watch pairs with. Background push (screen off / app
+closed) is now built: a `WebPushProvider` (VAPID / RFC 8291) delivers to the PWA when the
+`VAPID_*` keys are set, and **Capacitor** iOS/Android shells (native APNs/FCM + haptics) are
+scaffolded for the app stores. Foreground audio + glance + local notifications work today.
 
 ## Apple Watch (native, planned — satellite of the phone)
 
@@ -69,8 +71,9 @@ the companion rather than connecting directly.
 
 ## Build order
 
-1. APNs/FCM providers behind `PushProvider` (server — small, the seam exists).
-2. Phone companion shell (consumes the WS feed + the Earbud audio; registers for push).
+1. ~~APNs / FCM / Web Push providers behind `PushProvider`~~ ✓ (built + tested).
+2. ~~Phone companion (PWA)~~ ✓ — Capacitor iOS/Android shells scaffolded for the stores.
 3. Apple Watch app as the companion's satellite (haptics, glance, complication).
 
-Steps 2–3 are native work; step 1 and everything server-side is complete and tested.
+Everything server-side and the PWA are complete and tested; the remaining work is the
+native store shells (step 2 polish) and the watch app (step 3).

@@ -2,21 +2,24 @@
 
 Glance pins dependencies and upgrades them **deliberately and tested**, never with
 blind bumps. Routine currency is automated by Dependabot (`.github/dependabot.yml`):
-grouped PRs every week, each gated by CI (`typecheck → lint → test → build`). Merge
-the green ones.
+grouped PRs every week, each gated by CI (`typecheck → lint → format:check → test →
+build → coverage`, plus the Security scan and Playwright E2E workflows). Merge the
+green ones.
 
 The **major** upgrades below are staged. Do them one at a time, each on its own
 branch, running `pnpm verify` after each step and only proceeding when green. This
 is the order of least to most blast-radius.
 
-| # | Upgrade | Why staged separately | Watch for |
-|---|---------|----------------------|-----------|
-| 1 | `vitest` 2 → 3 | Test runner only; fails loud and early | config key renames |
-| 2 | `@typescript-eslint` + `eslint` → 9/flat-or-10 | Flat-config migration | `eslint.config.js` shape |
-| 3 | `typescript` 5.x → latest | Stricter inference may surface new type errors | `noUncheckedIndexedAccess` edges |
-| 4 | `vite` 5 → 7 | Dev/build server; plugin compatibility | `@vitejs/plugin-react` peer range |
-| 5 | `react`/`react-dom` 18 → 19 | Runtime behavior (effects, transitions) | the HUD audio effects, Strict-mode double-invoke |
-| 6 | `@anthropic-ai/sdk` → latest | Provider API surface | `messages.create` params, model ids |
+_Already done: `vitest` is on **3** (with `@vitest/coverage-v8` for CI coverage), and
+`eslint` is on **9** with the flat config (`eslint.config.mjs`). The remaining majors:_
+
+| #   | Upgrade                                      | Why staged separately                            | Watch for                                        |
+| --- | -------------------------------------------- | ------------------------------------------------ | ------------------------------------------------ |
+| 1   | `@typescript-eslint` 8 → 9 / `eslint` 9 → 10 | Next linter majors (flat config already shipped) | rule/preset renames, new recommended set         |
+| 2   | `typescript` 5.x → latest                    | Stricter inference may surface new type errors   | `noUncheckedIndexedAccess` edges                 |
+| 3   | `vite` 5 → 7                                 | Dev/build server; plugin compatibility           | `@vitejs/plugin-react` peer range                |
+| 4   | `react`/`react-dom` 18 → 19                  | Runtime behavior (effects, transitions)          | the HUD audio effects, Strict-mode double-invoke |
+| 5   | `@anthropic-ai/sdk` → latest                 | Provider API surface                             | `messages.create` params, model ids              |
 
 ## Procedure (per upgrade)
 
@@ -24,7 +27,7 @@ is the order of least to most blast-radius.
 git checkout -b deps/<name>
 pnpm up <package>@<version> -r        # -r = across the workspace
 pnpm install
-pnpm verify                            # typecheck + lint + test + build
+pnpm verify                            # typecheck + lint + format:check + test + build
 # fix anything red, commit, push, open PR, let CI confirm, merge
 ```
 

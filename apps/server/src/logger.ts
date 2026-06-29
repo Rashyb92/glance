@@ -7,8 +7,7 @@ type Fields = Record<string, unknown>;
 
 const LEVELS: Record<Level, number> = { debug: 10, info: 20, warn: 30, error: 40 };
 const MIN = LEVELS[(process.env['GLANCE_LOG_LEVEL'] as Level | undefined) ?? 'info'] ?? 20;
-const PRETTY =
-  process.env['GLANCE_LOG_PRETTY'] === '1' || process.env['NODE_ENV'] !== 'production';
+const PRETTY = process.env['GLANCE_LOG_PRETTY'] === '1' || process.env['NODE_ENV'] !== 'production';
 
 function color(level: Level): string {
   switch (level) {
@@ -28,7 +27,9 @@ function emit(level: Level, msg: string, fields?: Fields): void {
   const ts = new Date().toISOString();
   if (PRETTY) {
     const extra = fields && Object.keys(fields).length ? ` ${JSON.stringify(fields)}` : '';
-    console.log(`\x1b[2m${ts.slice(11, 19)}\x1b[0m ${color(level)}${level.toUpperCase().padEnd(5)}\x1b[0m ${msg}${extra}`);
+    console.log(
+      `\x1b[2m${ts.slice(11, 19)}\x1b[0m ${color(level)}${level.toUpperCase().padEnd(5)}\x1b[0m ${msg}${extra}`,
+    );
   } else {
     console.log(JSON.stringify({ t: ts, level, msg, ...fields }));
   }

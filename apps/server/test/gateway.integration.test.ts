@@ -69,7 +69,10 @@ describe('gateway HTTP routes (integration)', () => {
   });
 
   it('returns the session and settings', async () => {
-    expect(await (await fetch(`${BASE}/api/session`)).json()).toMatchObject({ demo: true, channels: [] });
+    expect(await (await fetch(`${BASE}/api/session`)).json()).toMatchObject({
+      demo: true,
+      channels: [],
+    });
     expect(await (await fetch(`${BASE}/api/settings`)).json()).toHaveProperty('surfaceThreshold');
   });
 

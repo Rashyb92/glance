@@ -84,7 +84,9 @@ export class YouTubeAdapter implements PlatformAdapter {
         this.pageToken = json.nextPageToken;
         for (const item of json.items ?? []) {
           if (item && typeof item === 'object') {
-            this.handlers?.onMessage(youtubeToChatMessage(this.channel, item as Record<string, unknown>));
+            this.handlers?.onMessage(
+              youtubeToChatMessage(this.channel, item as Record<string, unknown>),
+            );
           }
         }
         nextDelay = Math.max(this.pollFloorMs, json.pollingIntervalMillis ?? this.pollFloorMs);

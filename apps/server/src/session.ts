@@ -116,7 +116,8 @@ export class SessionController {
       const ch = src.channel.trim().replace(/^#/, '').toLowerCase();
       const valid = src.platform === 'twitch' ? /^[a-z0-9_]{3,25}$/ : /^[a-z0-9_.-]{1,60}$/;
       if (!ch || !valid.test(ch)) {
-        if (src.channel.trim()) this.deps.log(`rejected invalid channel: ${src.channel.slice(0, 40)}`);
+        if (src.channel.trim())
+          this.deps.log(`rejected invalid channel: ${src.channel.slice(0, 40)}`);
         continue;
       }
       const adapter = this.buildAdapter(src.platform, ch);

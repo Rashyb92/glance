@@ -1,7 +1,7 @@
 # Glance Companion — iOS (App Store)
 
 Two ways onto iOS. The PWA itself already runs on iOS **without** the App Store: Safari →
-Share → *Add to Home Screen* gives a full-screen app, and on **iOS 16.4+** background Web
+Share → _Add to Home Screen_ gives a full-screen app, and on **iOS 16.4+** background Web
 Push works for that installed PWA (already wired). The App Store wrapper below is for
 discoverability and a native shell.
 
@@ -55,8 +55,8 @@ pnpm add @capacitor/push-notifications
 Register for notifications on launch, send the APNs device token to
 `POST /api/push/subscribe` with `{ "platform": "apns", "endpoint": "<device-token>" }`
 (the store already accepts `apns`). Then implement an APNs sender behind the server's
-`PushProvider` seam (`apps/server/src/push.ts`) using your APNs key. Enable the *Push
-Notifications* capability in Xcode and upload an APNs auth key in the Apple Developer
+`PushProvider` seam (`apps/server/src/push.ts`) using your APNs key. Enable the _Push
+Notifications_ capability in Xcode and upload an APNs auth key in the Apple Developer
 portal.
 
 ### Native haptics

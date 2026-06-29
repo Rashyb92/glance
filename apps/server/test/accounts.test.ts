@@ -72,7 +72,9 @@ describe('AuthService.deleteAccount', () => {
 
     expect(await svc.deleteAccount('user@example.com', 'hunter2hunter')).toBe(signed.tenant);
     expect(await accounts.get('user@example.com')).toBeNull(); // record gone
-    expect(await svc.login('user@example.com', 'hunter2hunter')).toEqual({ error: expect.any(String) });
+    expect(await svc.login('user@example.com', 'hunter2hunter')).toEqual({
+      error: expect.any(String),
+    });
   });
 });
 
@@ -86,6 +88,8 @@ describe('AuthService.adminDeleteByEmail', () => {
     expect(await svc.adminDeleteByEmail('ghost@example.com')).toBeNull(); // unknown account
     expect(await svc.adminDeleteByEmail('OPS@example.com')).toBe(signed.tenant); // normalized, no password
     expect(await accounts.get('ops@example.com')).toBeNull();
-    expect(await svc.login('ops@example.com', 'hunter2hunter')).toEqual({ error: expect.any(String) });
+    expect(await svc.login('ops@example.com', 'hunter2hunter')).toEqual({
+      error: expect.any(String),
+    });
   });
 });

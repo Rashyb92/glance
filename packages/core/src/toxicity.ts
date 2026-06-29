@@ -10,7 +10,17 @@ export interface ToxicitySignal {
   flagged: boolean;
 }
 
-const PROFANITY = ['fuck', 'shit', 'bitch', 'asshole', 'dick', 'cunt', 'bastard', 'douche', 'prick'];
+const PROFANITY = [
+  'fuck',
+  'shit',
+  'bitch',
+  'asshole',
+  'dick',
+  'cunt',
+  'bastard',
+  'douche',
+  'prick',
+];
 
 const HARASSMENT: RegExp[] = [
   /\bk+y+s+\b/i, // "kys"

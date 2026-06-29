@@ -319,7 +319,9 @@ logger.info('Glance server is live', {
   hud: 'http://localhost:5173',
   dashboard: 'http://localhost:5174',
   auth: process.env['GLANCE_AUTH_SECRET'] ? 'token (multi-tenant)' : 'dev (default tenant)',
-  adminConsole: adminAuth.enabled ? `http://localhost:${config.wsPort}/admin` : 'disabled (set GLANCE_ADMIN_TOKEN)',
+  adminConsole: adminAuth.enabled
+    ? `http://localhost:${config.wsPort}/admin`
+    : 'disabled (set GLANCE_ADMIN_TOKEN)',
 });
 
 let shuttingDown = false;

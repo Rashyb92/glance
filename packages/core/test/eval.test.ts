@@ -28,7 +28,11 @@ const scenarios: EvalScenario[] = [
       { message: msg('W'), shouldSurface: false },
       { message: msg('ggs'), shouldSurface: false },
       { message: msg('hahaha'), shouldSurface: false },
-      { message: msg('yo when is the next stream?'), shouldSurface: true, expectCategory: 'question' },
+      {
+        message: msg('yo when is the next stream?'),
+        shouldSurface: true,
+        expectCategory: 'question',
+      },
       {
         message: msg('thank you so much for the stream', { bits: 500 }),
         shouldSurface: true,
@@ -62,7 +66,11 @@ const scenarios: EvalScenario[] = [
     cases: [
       { message: msg('i think the new update is pretty solid so far'), shouldSurface: false },
       { message: msg('been watching for years still the best'), shouldSurface: false },
-      { message: msg('hey ninja what mouse do you use?'), shouldSurface: true, expectCategory: 'mention' },
+      {
+        message: msg('hey ninja what mouse do you use?'),
+        shouldSurface: true,
+        expectCategory: 'mention',
+      },
     ],
   },
 ];

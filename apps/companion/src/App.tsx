@@ -53,7 +53,10 @@ export function App(): JSX.Element {
     lastPriorityId.current = p.id;
     const channels = settings?.routing?.[p.category] ?? [];
     if (audio && channels.includes('earcon')) {
-      earcon(p.category === 'donation' ? 'donation' : p.category === 'moderation' ? 'alert' : 'event', volume);
+      earcon(
+        p.category === 'donation' ? 'donation' : p.category === 'moderation' ? 'alert' : 'event',
+        volume,
+      );
     }
     if (audio && channels.includes('voice')) {
       const line = `${p.author ?? 'chat'} says ${p.text}`;
@@ -61,7 +64,8 @@ export function App(): JSX.Element {
       setHeard((h) => [line, ...h].slice(0, 10));
     }
     if (channels.includes('haptic')) haptic(p.category); // feel it — independent of the sound toggle
-    if (notify && document.hidden) notification('Worth answering', `${p.author ?? 'chat'}: ${p.text}`);
+    if (notify && document.hidden)
+      notification('Worth answering', `${p.author ?? 'chat'}: ${p.text}`);
   }, [priorities, audio, volume, settings, notify]);
 
   // Channel events (donations, raids, subs).
@@ -92,7 +96,9 @@ export function App(): JSX.Element {
         <span className="c-brand">◐ Glance</span>
         <span className="c-meta">
           {viewers != null && <span>{fmt(viewers)} watching</span>}
-          <span className={`c-status c-status-${status}`}>{status === 'online' ? 'live' : status}</span>
+          <span className={`c-status c-status-${status}`}>
+            {status === 'online' ? 'live' : status}
+          </span>
         </span>
       </header>
 

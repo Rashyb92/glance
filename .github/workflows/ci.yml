@@ -7,7 +7,7 @@ on:
 
 jobs:
   verify:
-    name: typecheck · lint · test · build
+    name: typecheck · lint · format · test · build · coverage
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -32,8 +32,22 @@ jobs:
       - name: Lint
         run: pnpm lint
 
+      - name: Format check
+        run: pnpm format:check
+
       - name: Test
         run: pnpm test
 
       - name: Build
         run: pnpm build
+
+      - name: Coverage (server)
+        run: pnpm test:coverage
+
+      - name: Upload coverage report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: server-coverage
+          path: apps/server/coverage
+          if-no-files-found: ignore

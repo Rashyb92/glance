@@ -306,7 +306,8 @@ export function handleIntegrationRoutes(
     }
     readJson(req)
       .then((body) => {
-        const plan = typeof body['plan'] === 'string' && isPlanId(body['plan']) ? body['plan'] : null;
+        const plan =
+          typeof body['plan'] === 'string' && isPlanId(body['plan']) ? body['plan'] : null;
         if (!plan || plan === 'free') {
           send(400, { error: 'invalid plan' });
           return undefined;

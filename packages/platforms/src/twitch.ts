@@ -206,27 +206,50 @@ export function toChannelEvent(channel: string, irc: IrcMessage): ChannelEvent |
 
   switch (msgId) {
     case 'sub':
-      return { ...base, kind: 'subscription', summary: system || `${who} subscribed`, magnitude: 1 };
+      return {
+        ...base,
+        kind: 'subscription',
+        summary: system || `${who} subscribed`,
+        magnitude: 1,
+      };
     case 'resub': {
       const months = num(tags['msg-param-cumulative-months']) ?? num(tags['msg-param-months']) ?? 1;
-      return { ...base, kind: 'resub', summary: system || `${who} resubscribed (${months} mo)`, magnitude: months };
+      return {
+        ...base,
+        kind: 'resub',
+        summary: system || `${who} resubscribed (${months} mo)`,
+        magnitude: months,
+      };
     }
     case 'subgift':
     case 'anonsubgift':
       return {
         ...base,
         kind: 'gift_subs',
-        summary: system || `${who} gifted a sub to ${tags['msg-param-recipient-display-name'] ?? 'someone'}`,
+        summary:
+          system ||
+          `${who} gifted a sub to ${tags['msg-param-recipient-display-name'] ?? 'someone'}`,
         magnitude: 1,
       };
     case 'submysterygift': {
       const count = num(tags['msg-param-mass-gift-count']) ?? 1;
-      return { ...base, kind: 'gift_subs', summary: system || `${who} gifted ${count} subs`, magnitude: count };
+      return {
+        ...base,
+        kind: 'gift_subs',
+        summary: system || `${who} gifted ${count} subs`,
+        magnitude: count,
+      };
     }
     case 'raid': {
       const viewers = num(tags['msg-param-viewerCount']) ?? 0;
       const from = tags['msg-param-displayName'] ?? who;
-      return { ...base, kind: 'raid', summary: system || `raid: ${viewers} viewers from ${from}`, author: from, magnitude: viewers };
+      return {
+        ...base,
+        kind: 'raid',
+        summary: system || `raid: ${viewers} viewers from ${from}`,
+        author: from,
+        magnitude: viewers,
+      };
     }
     case 'announcement':
       return { ...base, kind: 'announcement', summary: irc.params[1] ?? system };

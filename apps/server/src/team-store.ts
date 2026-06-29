@@ -76,7 +76,9 @@ export class TeamStore {
   }
 
   private read(tenant: string): TeamMember[] {
-    const raw = this.cache ? this.cache.read(`team:${this.safe(tenant)}`) : readFileOrNull(this.fileFor(tenant));
+    const raw = this.cache
+      ? this.cache.read(`team:${this.safe(tenant)}`)
+      : readFileOrNull(this.fileFor(tenant));
     if (!raw) return [];
     try {
       const parsed: unknown = JSON.parse(raw);

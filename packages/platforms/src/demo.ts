@@ -8,27 +8,67 @@ import type { AdapterHandlers, PlatformAdapter } from './adapter';
  * a future Kick / YouTube adapter should look.
  */
 const USERS = [
-  'mara_plays', 'grumpycat', 'devon_irl', 'liluzi', 'kayohh', 'no_scope_nick',
-  'pixelpip', 'quietstorm', 'bigtuna', 'sunny_side', 'wanderlust', 'frostbyte',
-  'echo_22', 'novaaa', 'glitchking', 'mintchoc',
+  'mara_plays',
+  'grumpycat',
+  'devon_irl',
+  'liluzi',
+  'kayohh',
+  'no_scope_nick',
+  'pixelpip',
+  'quietstorm',
+  'bigtuna',
+  'sunny_side',
+  'wanderlust',
+  'frostbyte',
+  'echo_22',
+  'novaaa',
+  'glitchking',
+  'mintchoc',
 ];
 const CHATTER = [
-  'this stream is so good', 'lmao', 'W streamer', 'first time here, love it',
-  'the vibes are immaculate', 'POG', 'that was clean', 'hi from germany',
-  'this city looks amazing', 'i been here 3 hours send help', 'bro the sunset',
-  'LULW', 'sheesh', 'no wayyy', 'real', 'chat is wild today',
+  'this stream is so good',
+  'lmao',
+  'W streamer',
+  'first time here, love it',
+  'the vibes are immaculate',
+  'POG',
+  'that was clean',
+  'hi from germany',
+  'this city looks amazing',
+  'i been here 3 hours send help',
+  'bro the sunset',
+  'LULW',
+  'sheesh',
+  'no wayyy',
+  'real',
+  'chat is wild today',
 ];
 const QUESTIONS = [
-  'what time do you go live tomorrow?', 'are you doing the marathon this weekend?',
-  'how long have you been streaming?', 'can you show the map again?',
-  'what camera are you using?', 'is this your first time in tokyo?',
+  'what time do you go live tomorrow?',
+  'are you doing the marathon this weekend?',
+  'how long have you been streaming?',
+  'can you show the map again?',
+  'what camera are you using?',
+  'is this your first time in tokyo?',
 ];
 const DONO_MESSAGES = [
-  'amazing stream!', 'love your content, keep it up', 'this made my day', 'take my bits king',
+  'amazing stream!',
+  'love your content, keep it up',
+  'this made my day',
+  'take my bits king',
 ];
-const TREND_PHRASES = ['do the food challenge', 'say hi to chat', 'show the doggo', 'order the ramen'];
+const TREND_PHRASES = [
+  'do the food challenge',
+  'say hi to chat',
+  'show the doggo',
+  'order the ramen',
+];
 // Mildly spicy lines so the moderation / flag path is visible in the demo.
-const SPICY = ['ngl you are a clown for that', 'this take is kinda trash', 'lowkey you are a clown'];
+const SPICY = [
+  'ngl you are a clown for that',
+  'this take is kinda trash',
+  'lowkey you are a clown',
+];
 
 function pick<T>(arr: readonly T[]): T {
   return arr[Math.floor(Math.random() * arr.length)]!;

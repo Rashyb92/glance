@@ -229,7 +229,11 @@ export function App(): JSX.Element {
         </header>
 
         {panelOpen && (
-          <OverlayPanel settings={overlay} update={setOverlay} onClose={() => setPanelOpen(false)} />
+          <OverlayPanel
+            settings={overlay}
+            update={setOverlay}
+            onClose={() => setPanelOpen(false)}
+          />
         )}
 
         <div className={`feed mode-${mode}`}>
@@ -247,11 +251,7 @@ export function App(): JSX.Element {
             <EventCard key={e.event.id} event={e.event} score={e.score} />
           ))}
           {surfaced.map((m) => (
-            <MessageRow
-              key={m.message.id}
-              scored={m}
-              dim={mode === 'raw' && m.score < threshold}
-            />
+            <MessageRow key={m.message.id} scored={m} dim={mode === 'raw' && m.score < threshold} />
           ))}
           {mode === 'assist' && !summary && (
             <p className="hint">Listening — AI summaries will appear here.</p>
@@ -423,7 +423,10 @@ function StatusDot({ status }: { status: ConnectionStatus }): JSX.Element {
 function ScoreBar({ score, tone }: { score: number; tone: Tone }): JSX.Element {
   return (
     <span className="scorebar" title={`salience ${score.toFixed(2)}`}>
-      <span className={`scorebar-fill tone-${tone}`} style={{ width: `${Math.round(score * 100)}%` }} />
+      <span
+        className={`scorebar-fill tone-${tone}`}
+        style={{ width: `${Math.round(score * 100)}%` }}
+      />
     </span>
   );
 }
@@ -441,7 +444,9 @@ function MessageRow({ scored, dim }: { scored: ScoredMessage; dim: boolean }): J
         <span className="author" style={message.color ? { color: message.color } : undefined}>
           {message.author}
         </span>
-        <span style={{ fontSize: 10, textTransform: 'uppercase', letterSpacing: 0.5, opacity: 0.45 }}>
+        <span
+          style={{ fontSize: 10, textTransform: 'uppercase', letterSpacing: 0.5, opacity: 0.45 }}
+        >
           {message.platform}
         </span>
         <Chip tone={meta.tone}>

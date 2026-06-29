@@ -18,7 +18,12 @@ function recorder(): { provider: PushProvider; sent: string[] } {
   };
 }
 
-const sub: PushSubscription = { id: '1', platform: 'webhook', endpoint: 'https://h/x', createdAt: 0 };
+const sub: PushSubscription = {
+  id: '1',
+  platform: 'webhook',
+  endpoint: 'https://h/x',
+  createdAt: 0,
+};
 const raid = (id: string): ServerMessage => ({
   type: 'event',
   data: { id, platform: 'twitch', channel: 'c', kind: 'raid', summary: 'raid', timestamp: 0 },

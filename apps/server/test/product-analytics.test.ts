@@ -11,7 +11,12 @@ describe('ProductAnalytics', () => {
     a.reach('t1', 'signup'); // duplicate — ignored
     a.reach('t1', 'activated');
     a.reach('t2', 'signup');
-    expect((await a.report()).funnel).toEqual({ signup: 2, activated: 1, engaged: 0, subscribed: 0 });
+    expect((await a.report()).funnel).toEqual({
+      signup: 2,
+      activated: 1,
+      engaged: 0,
+      subscribed: 0,
+    });
   });
 
   it('computes stage-to-stage conversion', async () => {

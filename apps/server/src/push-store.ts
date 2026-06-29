@@ -59,7 +59,12 @@ export class PushStore {
     endpoint: string,
     keys?: { p256dh: string; auth: string },
   ): PushSubscription | { error: string } {
-    if (platform !== 'apns' && platform !== 'fcm' && platform !== 'webhook' && platform !== 'webpush') {
+    if (
+      platform !== 'apns' &&
+      platform !== 'fcm' &&
+      platform !== 'webhook' &&
+      platform !== 'webpush'
+    ) {
       return { error: 'invalid platform' };
     }
     const ep = endpoint.trim();
@@ -95,7 +100,9 @@ export class PushStore {
   }
 
   private read(tenant: string): PushSubscription[] {
-    const raw = this.cache ? this.cache.read(`push:${this.safe(tenant)}`) : readFileOrNull(this.fileFor(tenant));
+    const raw = this.cache
+      ? this.cache.read(`push:${this.safe(tenant)}`)
+      : readFileOrNull(this.fileFor(tenant));
     if (!raw) return [];
     try {
       const parsed: unknown = JSON.parse(raw);
@@ -145,7 +152,9 @@ export function isPrivateIp(ip: string): boolean {
   }
   if (host.includes(':')) {
     // IPv6 loopback / link-local / unique-local literals.
-    return host === '::1' || host.startsWith('fe80') || host.startsWith('fc') || host.startsWith('fd');
+    return (
+      host === '::1' || host.startsWith('fe80') || host.startsWith('fc') || host.startsWith('fd')
+    );
   }
   return false;
 }

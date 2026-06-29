@@ -67,7 +67,9 @@ export class EntitlementStore {
   }
 
   private read(tenant: string): Entitlement | null {
-    const raw = this.cache ? this.cache.read(`ent:${this.safe(tenant)}`) : readFileOrNull(this.fileFor(tenant));
+    const raw = this.cache
+      ? this.cache.read(`ent:${this.safe(tenant)}`)
+      : readFileOrNull(this.fileFor(tenant));
     if (!raw) return null;
     try {
       return JSON.parse(raw) as Entitlement;

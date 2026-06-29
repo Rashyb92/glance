@@ -123,7 +123,10 @@ export async function inviteMember(
 }
 
 export async function removeMember(id: string): Promise<void> {
-  await fetch(`${BASE}/api/team/${encodeURIComponent(id)}`, { method: 'DELETE', headers: headers() });
+  await fetch(`${BASE}/api/team/${encodeURIComponent(id)}`, {
+    method: 'DELETE',
+    headers: headers(),
+  });
 }
 
 /** Mint a per-member login token (admins/owners only). Returns the token, or null. */

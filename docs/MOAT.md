@@ -3,7 +3,7 @@
 Glance's defensible core is the **salience model** — the deterministic engine that decides
 what's worth a creator's attention. It's pure, fast (microseconds per message), and runs with
 zero external calls; the AI layer augments it but never replaces it. Because the entire
-business rests on this being *good* ("attractive if, and only if, the salience model is good
+business rests on this being _good_ ("attractive if, and only if, the salience model is good
 enough to be worth paying for"), we **measure** it rather than assert it.
 
 ## How we measure it

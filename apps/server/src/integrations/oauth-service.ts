@@ -49,11 +49,7 @@ export class OAuthService {
     return { url: `${cfg.authorizeUrl}?${params.toString()}`, state, verifier };
   }
 
-  async exchangeCode(
-    provider: ProviderId,
-    code: string,
-    verifier?: string,
-  ): Promise<OAuthTokens> {
+  async exchangeCode(provider: ProviderId, code: string, verifier?: string): Promise<OAuthTokens> {
     const cfg = PROVIDERS[provider];
     const body = new URLSearchParams({
       client_id: process.env[cfg.clientIdEnv] ?? '',

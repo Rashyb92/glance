@@ -8,7 +8,12 @@ import type { PushPlatform, PushSubscription } from '../src/push-store';
 function sub(platform: PushPlatform): PushSubscription {
   return { id: '1', platform, endpoint: 'device-token', createdAt: 0 };
 }
-const note: PushNotification = { title: 'Donation!', body: '500 bits', category: 'event', tag: 't' };
+const note: PushNotification = {
+  title: 'Donation!',
+  body: '500 bits',
+  category: 'event',
+  tag: 't',
+};
 
 describe('RoutingPushProvider', () => {
   it('routes by platform and falls back otherwise', async () => {
@@ -35,7 +40,10 @@ describe('FcmProvider', () => {
       calls.push(u);
       if (u.includes('oauth2')) {
         expect(String(init?.body ?? '')).toContain('assertion=');
-        return { ok: true, json: async () => ({ access_token: 'ya29.test', expires_in: 3600 }) } as unknown as Response;
+        return {
+          ok: true,
+          json: async () => ({ access_token: 'ya29.test', expires_in: 3600 }),
+        } as unknown as Response;
       }
       expect((init?.headers as Record<string, string>)['authorization']).toBe('Bearer ya29.test');
       return { ok: true, json: async () => ({}) } as unknown as Response;

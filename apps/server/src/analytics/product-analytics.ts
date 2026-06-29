@@ -56,7 +56,12 @@ export class ProductAnalytics {
 
   /** Distinct-tenant funnel, derived from the durable records (or in-memory when no KvStore). */
   async report(): Promise<FunnelReport> {
-    const funnel: Record<FunnelStage, number> = { signup: 0, activated: 0, engaged: 0, subscribed: 0 };
+    const funnel: Record<FunnelStage, number> = {
+      signup: 0,
+      activated: 0,
+      engaged: 0,
+      subscribed: 0,
+    };
     if (this.kv) {
       for (const { value } of await this.kv.list('analytics:reach:')) {
         for (const stage of this.parse(value)) funnel[stage] += 1;

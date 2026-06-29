@@ -18,7 +18,10 @@ export function createPgClient(connectionString: string): SqlClient {
   const pg = load('pg') as { Pool: new (config: { connectionString: string }) => PgPoolLike };
   const pool = new pg.Pool({ connectionString });
   return {
-    async query<R = Record<string, unknown>>(text: string, params?: unknown[]): Promise<SqlResult<R>> {
+    async query<R = Record<string, unknown>>(
+      text: string,
+      params?: unknown[],
+    ): Promise<SqlResult<R>> {
       const result = await pool.query(text, params);
       return { rows: result.rows as R[] };
     },

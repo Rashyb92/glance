@@ -3,7 +3,7 @@
 The companion PWA ships to the Play Store as a **Trusted Web Activity (TWA)** — a thin
 native shell that opens the deployed PWA full-screen (no browser chrome) and forwards
 Web Push to the Android notification tray. There is no separate UI to maintain: the TWA
-*is* the PWA.
+_is_ the PWA.
 
 ## Prerequisites
 
@@ -44,7 +44,7 @@ The TWA only runs full-screen if the site proves it owns the app. Put the finger
 live at `https://<host>/.well-known/assetlinks.json`.
 
 > If you enable **Play App Signing** (recommended), Google re-signs the app, so use the
-> SHA-256 from Play Console → *Setup → App signing* in `assetlinks.json`, not the local
+> SHA-256 from Play Console → _Setup → App signing_ in `assetlinks.json`, not the local
 > keystore's. You can list both fingerprints — the upload key and the Play signing key.
 
 ## 4 · Publish

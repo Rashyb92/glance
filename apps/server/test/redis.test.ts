@@ -27,11 +27,14 @@ function fakePubSub(): {
 function fakeCounters(): RedisCounters {
   const store = new Map<string, number>();
   return {
-    incr: (k) => Promise.resolve(((): number => {
-      const n = (store.get(k) ?? 0) + 1;
-      store.set(k, n);
-      return n;
-    })()),
+    incr: (k) =>
+      Promise.resolve(
+        ((): number => {
+          const n = (store.get(k) ?? 0) + 1;
+          store.set(k, n);
+          return n;
+        })(),
+      ),
     pExpire: () => Promise.resolve(undefined),
   };
 }

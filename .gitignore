@@ -3,6 +3,8 @@ dist/
 build/
 .turbo/
 coverage/
+playwright-report/
+test-results/
 .vite/
 .data/
 *.tsbuildinfo

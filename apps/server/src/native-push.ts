@@ -28,7 +28,9 @@ export class ApnsProvider implements PushProvider {
   private readonly host: string;
 
   constructor(private readonly cfg: ApnsConfig) {
-    this.host = cfg.production ? 'https://api.push.apple.com' : 'https://api.sandbox.push.apple.com';
+    this.host = cfg.production
+      ? 'https://api.push.apple.com'
+      : 'https://api.sandbox.push.apple.com';
   }
 
   /** Provider token (ES256 JWT), reused for ~50 min (APNs accepts up to 60). */
@@ -51,7 +53,9 @@ export class ApnsProvider implements PushProvider {
       try {
         const client = connect(this.host);
         client.on('error', () => resolve());
-        const body = JSON.stringify({ aps: { alert: { title: note.title, body: note.body }, sound: 'default' } });
+        const body = JSON.stringify({
+          aps: { alert: { title: note.title, body: note.body }, sound: 'default' },
+        });
         const req = client.request({
           ':method': 'POST',
           ':path': `/3/device/${sub.endpoint}`,

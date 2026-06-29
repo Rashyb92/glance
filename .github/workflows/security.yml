@@ -1,0 +1,62 @@
+name: Security
+
+# Supply-chain hygiene: scan for committed secrets, vulnerabilities in the container image, and
+# advisories in dependencies. Runs on every push/PR and weekly (to catch newly-disclosed CVEs in
+# code that hasn't changed). Scans are report-first so a newly-published base-image CVE doesn't block
+# unrelated merges; flip the marked exit codes to enforce once the baseline is clean.
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  schedule:
+    - cron: '0 6 * * 1' # Mondays 06:00 UTC
+
+permissions:
+  contents: read
+
+jobs:
+  secrets:
+    name: Secret scan (gitleaks)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0 # full history so a secret in any past commit is caught
+      - name: gitleaks
+        uses: gitleaks/gitleaks-action@v2
+        env:
+          GITLEAKS_ENABLE_UPLOAD_ARTIFACT: 'false'
+          # GITLEAKS_LICENSE is only required for GitHub *organization* repos; personal repos need nothing.
+
+  image:
+    name: Container image scan (Trivy)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build image
+        run: docker build -t glance:scan .
+      - name: Scan image for HIGH/CRITICAL CVEs
+        uses: aquasecurity/trivy-action@0.28.0
+        with:
+          image-ref: glance:scan
+          format: table
+          severity: HIGH,CRITICAL
+          ignore-unfixed: true
+          exit-code: '0' # report-only — set to '1' to fail the build on fixable HIGH/CRITICAL CVEs
+
+  deps:
+    name: Dependency audit
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 9
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - name: pnpm audit (high and above)
+        run: pnpm audit --audit-level high || true # report-only (Dependabot opens the fix PRs)

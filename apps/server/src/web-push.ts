@@ -1,4 +1,11 @@
-import { createCipheriv, createECDH, createHmac, createPrivateKey, createSign, randomBytes } from 'node:crypto';
+import {
+  createCipheriv,
+  createECDH,
+  createHmac,
+  createPrivateKey,
+  createSign,
+  randomBytes,
+} from 'node:crypto';
 import type { PushNotification } from '@glance/core';
 import type { PushProvider } from './push';
 import { isPublicEndpoint, type PushSubscription } from './push-store';
@@ -76,7 +83,9 @@ export function vapidAuthHeader(
 ): string {
   const header = b64u(Buffer.from(JSON.stringify({ typ: 'JWT', alg: 'ES256' })));
   const claims = b64u(
-    Buffer.from(JSON.stringify({ aud: audience, exp: Math.floor(now / 1000) + 12 * 3600, sub: subject })),
+    Buffer.from(
+      JSON.stringify({ aud: audience, exp: Math.floor(now / 1000) + 12 * 3600, sub: subject }),
+    ),
   );
   const signingInput = `${header}.${claims}`;
   const sig = createSign('SHA256')
@@ -119,7 +128,11 @@ export class WebPushProvider implements PushProvider {
     }
     if (!(await isPublicEndpoint(sub.endpoint))) return; // SSRF guard — re-resolves the host
     try {
-      const body = encryptPayload(Buffer.from(JSON.stringify(note), 'utf8'), sub.keys.p256dh, sub.keys.auth);
+      const body = encryptPayload(
+        Buffer.from(JSON.stringify(note), 'utf8'),
+        sub.keys.p256dh,
+        sub.keys.auth,
+      );
       await this.fetchImpl(sub.endpoint, {
         method: 'POST',
         headers: {

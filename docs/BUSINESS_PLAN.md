@@ -1,7 +1,7 @@
 ---
-title: "Glance — Business Plan & Go-to-Market Strategy"
-subtitle: "AI-curated heads-up chat for live creators · a UK company · all figures in GBP (£)"
-date: "June 2026"
+title: 'Glance — Business Plan & Go-to-Market Strategy'
+subtitle: 'AI-curated heads-up chat for live creators · a UK company · all figures in GBP (£)'
+date: 'June 2026'
 ---
 
 > The polished, formatted version is **`Glance_Business_Plan.docx`** (cover page, contents,
@@ -22,43 +22,43 @@ Glance is **not** another overlay/alert/chatbot tool. It is an **attention layer
 
 # 3. The Problem (validated)
 
-Streamers "struggle to keep up with chat, resulting in missed messages, awkward pauses, and viewers feeling ignored," and the top-recommended upgrade for a new streamer is *a second monitor just to see chat*; text-to-speech reading everything "can get overwhelming" ([StreamScheme](https://www.streamscheme.com/how-to-view-twitch-chat-while-streaming/), [Murf](https://murf.ai/blog/twitch-text-to-speech)). Structurally, **55%+ of streamers broadcast to fewer than five concurrent viewers while the top 1% dominate** ([ElectroIQ](https://electroiq.com/stats/twitch-statistics/)). Glance serves both ends — *everything that matters* for the small creator, *only what matters* for the large one.
+Streamers "struggle to keep up with chat, resulting in missed messages, awkward pauses, and viewers feeling ignored," and the top-recommended upgrade for a new streamer is _a second monitor just to see chat_; text-to-speech reading everything "can get overwhelming" ([StreamScheme](https://www.streamscheme.com/how-to-view-twitch-chat-while-streaming/), [Murf](https://murf.ai/blog/twitch-text-to-speech)). Structurally, **55%+ of streamers broadcast to fewer than five concurrent viewers while the top 1% dominate** ([ElectroIQ](https://electroiq.com/stats/twitch-statistics/)). Glance serves both ends — _everything that matters_ for the small creator, _only what matters_ for the large one.
 
 # 4. Market Opportunity
 
 The creator economy is ~**£190bn (~$250bn) in 2025**, rising to **~£235–245bn in 2026**, with long-run forecasts of **£1.0–1.6tn by 2033–35** (CAGR ~23–30%) ([Grand View](https://www.grandviewresearch.com/industry-analysis/creator-economy-market-report), [Precedence](https://www.precedenceresearch.com/creator-economy-market)). The live-streaming **software** market is ~**£9.4bn (2025) → ~£35bn by 2032** (~20.6% CAGR) ([Business Research Insights](https://www.businessresearchinsights.com/market-reports/live-stream-software-market-100418)); the four major platforms logged **30bn+ hours in Q4 2025** ([Streams Charts](https://streamscharts.com/news/q4-2025-global-livestreaming-landscape)).
 
-| Platform | 2025 position | Scale signal |
-|---|---|---|
-| YouTube Live | #1, ~50% of watch hours | ~56bn hours in 2025 |
-| TikTok Live | #2, 27–31% | 8bn+ hrs/quarter; passed Twitch Q1 2025 |
-| Twitch | #3 (~16%), gaming/esports | 11.4m monthly streamers, ~2.1m concurrent |
-| Kick | Fastest-growing, ~11% | 4.5bn hrs (+131% YoY) |
+| Platform     | 2025 position             | Scale signal                              |
+| ------------ | ------------------------- | ----------------------------------------- |
+| YouTube Live | #1, ~50% of watch hours   | ~56bn hours in 2025                       |
+| TikTok Live  | #2, 27–31%                | 8bn+ hrs/quarter; passed Twitch Q1 2025   |
+| Twitch       | #3 (~16%), gaming/esports | 11.4m monthly streamers, ~2.1m concurrent |
+| Kick         | Fastest-growing, ~11%     | 4.5bn hrs (+131% YoY)                     |
 
 **Glasses tailwind:** Meta sold **7m+ AI glasses in 2025 (tripled YoY, ~73% share)**; Ray-Ban Display launched at **~£605 ($799)** ([Counterpoint](https://counterpointresearch.com/en/insights/post-insight-research-briefs-blogs-global-smart-glasses-shipments-soared-110-yoy-in-h1-2025-with-meta-capturing-over-70-share), [CNBC](https://www.cnbc.com/2026/02/11/ray-ban-maker-essilorluxottica-triples-sales-of-meta-ai-glasses.html)). At ~£20/mo blended paid ARPU, **50,000 paying creators ≈ £12m ARR; 250,000 ≈ £60m ARR.**
 
 # 5. Competitive Landscape
 
-| Capability | **Glance** | StreamElements | Streamlabs |
-|---|---|---|---|
-| Category | AI attention layer | Overlays/marketplace | Overlays (OBS app) |
-| Multi-platform merge | **Yes** | Per-platform | Per-platform |
-| Audio / earbud / glasses | **Yes** | No | No |
-| AI salience/priority | **Yes (moat)** | No | Limited |
-| Pricing | £0 / £15 / £39 | Free (marketplace cut) | Free + ~£20/mo Ultra |
+| Capability               | **Glance**         | StreamElements         | Streamlabs           |
+| ------------------------ | ------------------ | ---------------------- | -------------------- |
+| Category                 | AI attention layer | Overlays/marketplace   | Overlays (OBS app)   |
+| Multi-platform merge     | **Yes**            | Per-platform           | Per-platform         |
+| Audio / earbud / glasses | **Yes**            | No                     | No                   |
+| AI salience/priority     | **Yes (moat)**     | No                     | Limited              |
+| Pricing                  | £0 / £15 / £39     | Free (marketplace cut) | Free + ~£20/mo Ultra |
 
 Incumbents add pixels to a screen the creator can't watch; Glance removes the screen and says what matters. Their threat is distribution (StreamElements 1.1m+ creators) and "free"; we counter with a generous free tier, an unserved wedge, and a product that demos itself in a clip.
 
 # 6. Business Model & Pricing
 
-| Feature | **Free £0** | **Creator £15/mo** | **Pro £39/mo** |
-|---|---|---|---|
-| Salience engine, 1 platform | ✓ | ✓ | ✓ |
-| AI calls/day | 500 (rules-first) | 10,000 | 200,000 |
-| Audio / voice / "Ask Glance" | — | ✓ | ✓ |
-| Multi-platform merge | — | ✓ | ✓ |
-| Moderation, analytics, branding | — | — | ✓ |
-| Team seats / concurrent channels | 1 / 1 | 1 / 1 | 5 / 3 |
+| Feature                          | **Free £0**       | **Creator £15/mo** | **Pro £39/mo** |
+| -------------------------------- | ----------------- | ------------------ | -------------- |
+| Salience engine, 1 platform      | ✓                 | ✓                  | ✓              |
+| AI calls/day                     | 500 (rules-first) | 10,000             | 200,000        |
+| Audio / voice / "Ask Glance"     | —                 | ✓                  | ✓              |
+| Multi-platform merge             | —                 | ✓                  | ✓              |
+| Moderation, analytics, branding  | —                 | —                  | ✓              |
+| Team seats / concurrent channels | 1 / 1             | 1 / 1              | 5 / 3          |
 
 Annual billing = two months free (prepay, lower churn). Cap-based gating means a free user costs pennies and a Pro user pays for their own AI.
 
@@ -68,11 +68,11 @@ The dominant variable cost is the Claude API; everything else is small and large
 
 **Per-user unit economics (monthly):**
 
-| Tier | Price | AI COGS | Payments | Infra | Gross profit | Margin |
-|---|---|---|---|---|---|---|
-| Free | £0.00 | £0.10 | — | £0.05 | −£0.15 | loss-leader |
-| Creator | £15.00 | £3.00 | £0.70 | £0.30 | £11.00 | 73% |
-| Pro | £39.00 | £10.00 | £1.40 | £0.50 | £27.10 | 70% |
+| Tier    | Price  | AI COGS | Payments | Infra | Gross profit | Margin      |
+| ------- | ------ | ------- | -------- | ----- | ------------ | ----------- |
+| Free    | £0.00  | £0.10   | —        | £0.05 | −£0.15       | loss-leader |
+| Creator | £15.00 | £3.00   | £0.70    | £0.30 | £11.00       | 73%         |
+| Pro     | £39.00 | £10.00  | £1.40    | £0.50 | £27.10       | 70%         |
 
 Blended paid ARPU (80/20 Creator/Pro) = **£19.80/mo at ~72% gross margin** (~£14 gross profit per paying creator).
 
@@ -80,19 +80,19 @@ Blended paid ARPU (80/20 Creator/Pro) = **£19.80/mo at ~72% gross margin** (~£
 
 **Three-year P&L (illustrative, GBP — projections, not promises):**
 
-| Line item | Year 1 | Year 2 | Year 3 |
-|---|---|---|---|
-| Free users (EOY) | 5,000 | 30,000 | 100,000 |
-| Paying creators (EOY) | 200 | 1,500 | 5,000 |
-| End-of-year MRR | £3,960 | £29,700 | £99,000 |
-| Revenue (in-year) | £22,000 | £200,000 | £770,000 |
-| COGS (AI, infra, payments) | (£6,600) | (£56,000) | (£200,000) |
-| **Gross profit** | **£15,400** | **£144,000** | **£570,000** |
-| Marketing & creator partnerships | (£6,000) | (£45,000) | (£160,000) |
-| Salaries & contractors | (£2,000) | (£45,000) | (£200,000) |
-| Tools, infra & overhead | (£1,200) | (£6,000) | (£18,000) |
-| Other / contingency | — | (£12,000) | (£45,000) |
-| **Operating profit (net)** | **£6,200** | **£36,000** | **£147,000** |
+| Line item                        | Year 1      | Year 2       | Year 3       |
+| -------------------------------- | ----------- | ------------ | ------------ |
+| Free users (EOY)                 | 5,000       | 30,000       | 100,000      |
+| Paying creators (EOY)            | 200         | 1,500        | 5,000        |
+| End-of-year MRR                  | £3,960      | £29,700      | £99,000      |
+| Revenue (in-year)                | £22,000     | £200,000     | £770,000     |
+| COGS (AI, infra, payments)       | (£6,600)    | (£56,000)    | (£200,000)   |
+| **Gross profit**                 | **£15,400** | **£144,000** | **£570,000** |
+| Marketing & creator partnerships | (£6,000)    | (£45,000)    | (£160,000)   |
+| Salaries & contractors           | (£2,000)    | (£45,000)    | (£200,000)   |
+| Tools, infra & overhead          | (£1,200)    | (£6,000)     | (£18,000)    |
+| Other / contingency              | —           | (£12,000)    | (£45,000)    |
+| **Operating profit (net)**       | **£6,200**  | **£36,000**  | **£147,000** |
 
 **Break-even** is ~5–10 paying creators (vs ~£50–100/mo fixed infra), reached in the private beta — so Glance is cash-flow positive from early Year 1 and self-funds its first hires.
 
@@ -102,7 +102,7 @@ Blended paid ARPU (80/20 Creator/Pro) = **£19.80/mo at ~72% gross margin** (~£
 
 # 8. Go-to-Market Strategy
 
-**Positioning:** *"Never miss what matters in your chat — hands-free."* **Beachhead:** serious solo Twitch/Kick streamers (1k–50k followers). **Motion:** Land (free + no-glasses companion) → Convert (Creator £15, audio/voice/multi-platform) → Expand (Pro £39, teams/simulcast/branding). **Sequence:** private beta → Product Hunt/Indie Hackers launch → creator-partner flywheel → platform & glasses.
+**Positioning:** _"Never miss what matters in your chat — hands-free."_ **Beachhead:** serious solo Twitch/Kick streamers (1k–50k followers). **Motion:** Land (free + no-glasses companion) → Convert (Creator £15, audio/voice/multi-platform) → Expand (Pro £39, teams/simulcast/branding). **Sequence:** private beta → Product Hunt/Indie Hackers launch → creator-partner flywheel → platform & glasses.
 
 # 9. Marketing Strategy (research-backed)
 
@@ -129,14 +129,14 @@ Managed-simple infra (Fly/Neon/Upstash/Cloudflare); community-first support; sig
 
 # 12. Risks & Mitigations
 
-| Risk | Mitigation |
-|---|---|
-| AI cost spikes | Per-tier caps; Haiku; £0 rules fallback (the cap is the price lever). |
-| Incumbent "AI" features | Salience + multi-surface depth; ship faster; own the audio/heads-up niche. |
-| Platform API/policy change | Adapter seam; multi-platform spreads risk; fail-soft. |
-| Slow glasses adoption | Works today on phone/earbud/overlay — glasses are upside. |
-| Free-tier abuse/cost | Rules-first free tier; caps; rate limits; SSRF guards (audited). |
-| Single-founder bandwidth | Bootstrapped, low-ops stack; revenue-funded hires. |
+| Risk                       | Mitigation                                                                 |
+| -------------------------- | -------------------------------------------------------------------------- |
+| AI cost spikes             | Per-tier caps; Haiku; £0 rules fallback (the cap is the price lever).      |
+| Incumbent "AI" features    | Salience + multi-surface depth; ship faster; own the audio/heads-up niche. |
+| Platform API/policy change | Adapter seam; multi-platform spreads risk; fail-soft.                      |
+| Slow glasses adoption      | Works today on phone/earbud/overlay — glasses are upside.                  |
+| Free-tier abuse/cost       | Rules-first free tier; caps; rate limits; SSRF guards (audited).           |
+| Single-founder bandwidth   | Bootstrapped, low-ops stack; revenue-funded hires.                         |
 
 # 13. Conclusion
 

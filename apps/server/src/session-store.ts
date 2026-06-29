@@ -92,10 +92,12 @@ export class SessionStore {
 
   private persist(tenant: string): void {
     if (!this.cache) return;
-    const revoked = [...(this.revoked.get(tenant) ?? new Map<string, number>())].map(([id, exp]) => ({
-      id,
-      exp,
-    }));
+    const revoked = [...(this.revoked.get(tenant) ?? new Map<string, number>())].map(
+      ([id, exp]) => ({
+        id,
+        exp,
+      }),
+    );
     const data: Persisted = { revoked, epoch: this.epoch.get(tenant) ?? 0 };
     this.cache.write(this.key(tenant), JSON.stringify(data));
   }

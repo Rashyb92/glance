@@ -85,7 +85,9 @@ export function useGlanceFeed(): FeedState {
             setMessages((prev) => [...prev, msg.data].slice(-MAX_MESSAGES));
             break;
           case 'event':
-            setEvents((prev) => [{ event: msg.data, score: msg.score }, ...prev].slice(0, MAX_EVENTS));
+            setEvents((prev) =>
+              [{ event: msg.data, score: msg.score }, ...prev].slice(0, MAX_EVENTS),
+            );
             break;
           case 'summary':
             setSummary(msg.data);

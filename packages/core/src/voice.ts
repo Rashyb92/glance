@@ -52,7 +52,11 @@ export function parseVoiceCommand(transcript: string, snap: VoiceSnapshot): Voic
   if (has('donation', 'donate', 'bits', 'tips', 'money', 'cheer')) {
     if (snap.bitsTotal > 0) {
       const top = snap.topSupporter ? `, top from ${snap.topSupporter.author}` : '';
-      return { intent: 'donations', action: 'none', speak: `${snap.bitsTotal} bits this session${top}.` };
+      return {
+        intent: 'donations',
+        action: 'none',
+        speak: `${snap.bitsTotal} bits this session${top}.`,
+      };
     }
     return { intent: 'donations', action: 'none', speak: 'No bits yet this session.' };
   }
@@ -75,7 +79,10 @@ export function parseVoiceCommand(transcript: string, snap: VoiceSnapshot): Voic
     return {
       intent: 'viewers',
       action: 'none',
-      speak: snap.viewers != null ? `${snap.viewers} watching right now.` : "Viewer count isn't available.",
+      speak:
+        snap.viewers != null
+          ? `${snap.viewers} watching right now.`
+          : "Viewer count isn't available.",
     };
   }
   if (has('chatter', 'chatting', 'active')) {
@@ -98,13 +105,16 @@ export function parseVoiceCommand(transcript: string, snap: VoiceSnapshot): Voic
       intent: 'uptime',
       action: 'none',
       speak:
-        snap.uptimeSec != null ? `Live for ${formatDuration(snap.uptimeSec)}.` : "I don't have the uptime.",
+        snap.uptimeSec != null
+          ? `Live for ${formatDuration(snap.uptimeSec)}.`
+          : "I don't have the uptime.",
     };
   }
   return {
     intent: 'unknown',
     action: 'none',
-    speak: 'I can tell you about donations, questions, viewers, the mood, the summary, or clip a moment.',
+    speak:
+      'I can tell you about donations, questions, viewers, the mood, the summary, or clip a moment.',
   };
 }
 

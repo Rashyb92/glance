@@ -92,7 +92,10 @@ describe('resolveActor — per-member logins', () => {
     expect(resolveActor('acme')).toEqual({ tenant: 'acme', role: 'owner' });
     expect(resolveActor(undefined)).toEqual({ tenant: 'default', role: 'owner' });
     process.env[KEY] = 'top-secret';
-    expect(resolveActor(signToken('acme', 'top-secret'))).toEqual({ tenant: 'acme', role: 'owner' });
+    expect(resolveActor(signToken('acme', 'top-secret'))).toEqual({
+      tenant: 'acme',
+      role: 'owner',
+    });
   });
 
   it('round-trips a signed member token with its id and role', () => {

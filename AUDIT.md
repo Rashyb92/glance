@@ -1,5 +1,17 @@
 # Glance — Engineering & Compliance Audit
 
+> **STATUS — superseded; retained as a record of the hardening work.** This is the
+> original post-M4 working backlog. The Critical and High findings below — no auth,
+> no multi-tenancy, open CORS/WebSocket, in-memory O(n) store, indefinite plaintext
+> PII, dependency CVEs — have since been **remediated**: signed-token auth with
+> owner/member **revocation**, structural multi-tenancy, WebSocket + DoS hardening,
+> Postgres-backed durable stores, AES-256-GCM at-rest encryption, privacy-first
+> retention + **DSAR erasure**, metrics/`/ready` observability, and the dependency
+> bumps are all shipped. For the current security posture see `docs/LAUNCH_AUDIT.md`;
+> for how the system works today see `README.md`, `ARCHITECTURE.md`, `docs/DEPLOY.md`,
+> and `docs/SCALE.md`. The scorecard and findings below reflect the June 2026
+> snapshot, not the current state.
+
 **Date:** June 2026 · **Version audited:** post-M4 (`main`) · **Auditors:** code/architecture review, data-protection review, dependency & hardening review.
 
 > This document is the working backlog. Each finding has an ID, a severity, and a
@@ -14,7 +26,7 @@
 
 The **domain core is production-quality.** The salience engine, stats aggregator,
 session recorder, sentiment/toxicity analysers, and the platform/AI/storage
-*interfaces* are pure, strictly-typed, well-tested, and cleanly abstracted — the
+_interfaces_ are pure, strictly-typed, well-tested, and cleanly abstracted — the
 architecture's seams genuinely deliver on "platform-agnostic."
 
 The **server is a single-process, single-session, in-memory prototype.** It has no
@@ -29,16 +41,16 @@ persistence hardening effort, not a rewrite of the product.
 
 ### Scorecard
 
-| Dimension | Grade | Headline |
-|---|---|---|
-| Domain logic & correctness | A− | Pure, tested, deterministic; minor ID/randomness nits. |
-| Architecture & platform-agnosticism | A− | Clean swappable seams; minor hardcoded `localhost`/`twitch`. |
-| Test coverage | C+ | Core well-tested; **server, adapters, AI untested**. |
-| Security | D | **No auth, CORS `*`, no WS origin/heartbeat/limits.** |
-| Scalability | D | Single process, single session, in-memory, O(n) store. |
-| Data protection / compliance | D | Indefinite plaintext PII; no retention/erasure; AI sub-processor undisclosed. |
-| Dependency currency | B− | Mostly current installs, but **Vite floor is CVE-vulnerable**; majors behind. |
-| Observability / ops | D | Silent `catch{}` everywhere; no metrics; static `/health`. |
+| Dimension                           | Grade | Headline                                                                      |
+| ----------------------------------- | ----- | ----------------------------------------------------------------------------- |
+| Domain logic & correctness          | A−    | Pure, tested, deterministic; minor ID/randomness nits.                        |
+| Architecture & platform-agnosticism | A−    | Clean swappable seams; minor hardcoded `localhost`/`twitch`.                  |
+| Test coverage                       | C+    | Core well-tested; **server, adapters, AI untested**.                          |
+| Security                            | D     | **No auth, CORS `*`, no WS origin/heartbeat/limits.**                         |
+| Scalability                         | D     | Single process, single session, in-memory, O(n) store.                        |
+| Data protection / compliance        | D     | Indefinite plaintext PII; no retention/erasure; AI sub-processor undisclosed. |
+| Dependency currency                 | B−    | Mostly current installs, but **Vite floor is CVE-vulnerable**; majors behind. |
+| Observability / ops                 | D     | Silent `catch{}` everywhere; no metrics; static `/health`.                    |
 
 ---
 
@@ -50,7 +62,7 @@ Every REST endpoint (`POST/DELETE /api/session`, `PUT /api/settings`,
 WS `Origin` check. Anyone who can reach the port can hijack the session, change
 settings, **read/delete every archived session (chat names + text)**, and any
 website the streamer visits can drive their server (CSWSH/CSRF).
-*Fix:* per-tenant auth (signed token on REST `Authorization` + validated on the WS
+_Fix:_ per-tenant auth (signed token on REST `Authorization` + validated on the WS
 `upgrade`), CORS origin allowlist, WS origin verification. The local-grade pieces
 (origin check, CORS allowlist, payload caps) are **[FIX NOW]**; the full token/identity
 system is **[PRE-DEPLOY]**.
@@ -58,8 +70,8 @@ system is **[PRE-DEPLOY]**.
 **C2 — Single global session; architecturally single-tenant. [SCALE]**
 One `SessionController` / `GlanceEngine` / timer set / `state` per process. A second
 creator connecting calls `teardown()` and **destroys the first creator's session**;
-the gateway broadcasts every message to *all* clients with no per-tenant routing.
-*Fix:* introduce a tenant/room key; key controllers, storage, settings and WS
+the gateway broadcasts every message to _all_ clients with no per-tenant routing.
+_Fix:_ introduce a tenant/room key; key controllers, storage, settings and WS
 subscriptions by it; fan-out per room. This is the core scale-out work.
 
 **C3 — WebSocket server has no heartbeat, payload cap, backpressure, or rate limit. [FIX NOW]**
@@ -67,7 +79,7 @@ No ping/pong → half-open TCP connections accumulate as zombie clients (memory/
 leak). `broadcast()` ignores `client.bufferedAmount` → one slow consumer makes Node
 buffer unboundedly (OOM/DoS). `WebSocketServer` has no `maxPayload` (defaults to
 100 MB/frame). No per-IP connection cap.
-*Fix:* heartbeat + terminate-on-missed-pong; check `bufferedAmount` and drop slow
+_Fix:_ heartbeat + terminate-on-missed-pong; check `bufferedAmount` and drop slow
 clients; set `maxPayload` to a few KB; cap connections per IP. **Fixing this batch now.**
 
 **C4 — `FileStorage.listSessions` is an O(n) full scan on the event loop. [FIX NOW → PRE-DEPLOY]**
@@ -75,15 +87,15 @@ clients; set `maxPayload` to a few KB; cap connections per IP. **Fixing this bat
 timeline entries) synchronously just to build summaries — called on every Replay
 mount and after every delete. At thousands of archives this blocks the single event
 loop and stalls the live pipeline for all creators.
-*Fix now:* maintain a lightweight summary index file; never read full bodies to list.
-*Pre-deploy:* move to SQLite/Postgres (the `Storage` seam already anticipates this).
+_Fix now:_ maintain a lightweight summary index file; never read full bodies to list.
+_Pre-deploy:_ move to SQLite/Postgres (the `Storage` seam already anticipates this).
 
 **C5 — No graceful shutdown; in-flight session archive is lost on every deploy. [FIX NOW]**
 `shutdown()` calls `process.exit(0)` immediately, but `persist()` is fire-and-forget
 async (AI recap + `saveSession`). The exit races the unresolved promise → the
 recording session's archive is silently dropped; WS clients are cut without a close
 frame.
-*Fix:* `async` shutdown that awaits outstanding persistence (with a timeout), closes
+_Fix:_ `async` shutdown that awaits outstanding persistence (with a timeout), closes
 the WS server with a grace period, then exits. **Fixing this batch now.**
 
 **C6 — Vite version floor permits four 2025 path-traversal CVEs. [FIX NOW]**
@@ -91,7 +103,7 @@ the WS server with a grace period, then exits. **Fixing this batch now.**
 -31486 / -32395** (`server.fs` / `@fs` arbitrary file read; fixed at **5.4.18**).
 Dev-server-only and requires `--host`, but the pin is a real liability (installed
 build happens to be patched; the floor is not).
-*Fix:* raise the floor to `>=5.4.18` immediately (then plan the Vite 6/7 major).
+_Fix:_ raise the floor to `>=5.4.18` immediately (then plan the Vite 6/7 major).
 **Fixing this batch now.**
 
 **C7 — Indefinite plaintext retention of third-party chat PII; no erasure path. [FIX NOW + LEGAL]**
@@ -99,14 +111,14 @@ Archived `SessionDetail` JSON stores chatter **display names + verbatim message
 text** forever, unencrypted, with deletion only by whole session. This violates
 storage-limitation/minimisation duties and Twitch's developer terms, and cannot
 honour an erasure request for one chatter. See **Compliance** below.
-*Fix now:* retention TTL/sweep + channel/per-author deletion + an opt-out of storing
-raw text. *Legal:* lawful basis, notice, DPIA. **Retention plumbing is Fix Batch 3.**
+_Fix now:_ retention TTL/sweep + channel/per-author deletion + an opt-out of storing
+raw text. _Legal:_ lawful basis, notice, DPIA. **Retention plumbing is Fix Batch 3.**
 
 **C8 — Storing under-13 chatters' data triggers COPPA you cannot satisfy. [LEGAL]**
 Twitch has under-13 users; a stored message revealing a minor can constitute "actual
 knowledge," triggering verifiable-parental-consent and the 2025 COPPA retention rule
 (§312.10) — neither satisfiable for anonymous chatters. Penalties are per-record.
-*Fix:* "never knowingly store child data" posture + detect-and-purge + the written
+_Fix:_ "never knowingly store child data" posture + detect-and-purge + the written
 retention policy; **US privacy counsel required.**
 
 ---
@@ -116,37 +128,37 @@ retention policy; **US privacy counsel required.**
 **H1 — Error-swallowing everywhere. [FIX NOW]** Pervasive empty `catch{}`
 (`session.ts`, `engine.ts`, `anthropic.ts`, `storage.ts`, `settings-store.ts`,
 `config.ts`, `gateway.ts`). AI/disk/archive/config failures vanish with no log or
-metric — you'd be blind in production. *Fix:* log every caught error with context;
+metric — you'd be blind in production. _Fix:_ log every caught error with context;
 add counters. **This batch.**
 
 **H2 — Settings merge spreads unvalidated input. [FIX NOW]**
 `{ ...this.current, ...(patch as object) }` trusts arbitrary JSON before
 normalisation. Not a classic proto-pollution sink (object spread + field whitelist),
-but fragile and, combined with C1, allows unauthorized settings mutation. *Fix:* pass
+but fragile and, combined with C1, allows unauthorized settings mutation. _Fix:_ pass
 `patch` straight to `normalizeEngineSettings`; guard `__proto__`/`constructor`. **This batch.**
 
 **H3 — Twitch reconnect storm risk. [FIX NOW]** Exponential backoff but **no jitter**,
 no max-attempt cap, and `error`+`close` can both fire → double reconnect timers. At
-scale a Twitch blip produces a synchronized thundering herd (risking IP bans). *Fix:*
+scale a Twitch blip produces a synchronized thundering herd (risking IP bans). _Fix:_
 full jitter + single-flight reconnect guard + cap/alert. **This batch.**
 
 **H4 — Unbounded session archives; chat PII retained forever. [FIX NOW]** No TTL, no
-session cap; disk grows without bound. *Fix:* retention policy + eviction. **Fix Batch 3.**
+session cap; disk grows without bound. _Fix:_ retention policy + eviction. **Fix Batch 3.**
 
 **H5 — No server / integration / adapter tests. [FIX NOW]** Tests cover `packages/core`
 only. The riskiest code — gateway, session lifecycle, storage, settings-store, and the
-**IRC parser** (exported "for testing" but untested) — is unverified. *Fix:* add tests;
+**IRC parser** (exported "for testing" but untested) — is unverified. _Fix:_ add tests;
 gate CI. **Fix Batch 4.**
 
 **H6 — `channel` input not validated → outbound-connection abuse. [FIX NOW]** Any
 string spins up a `TwitchAdapter` that reconnect-loops forever; an attacker (via C1)
-can open arbitrary outbound Twitch connections. *Fix:* validate `^[a-z0-9_]{3,25}$`,
+can open arbitrary outbound Twitch connections. _Fix:_ validate `^[a-z0-9_]{3,25}$`,
 cap length, gate behind auth/ownership. **This batch.**
 
 **H7 — AI calls have no timeout, concurrency cap, or budget guard. [FIX NOW + SCALE]**
 `anthropic.ts` awaits with no `AbortController`; per session a summary fires ≥ every
 4 s and priorities every 9 s. At thousands of sessions this is unbounded paid fan-out;
-a slow response stalls the cycle. *Fix now:* per-call timeout. *Scale:* global
+a slow response stalls the cycle. _Fix now:_ per-call timeout. _Scale:_ global
 concurrency limiter + per-tenant cost caps. **Timeout this batch.**
 
 ---
@@ -155,11 +167,11 @@ concurrency limiter + per-tenant cost caps. **Timeout this batch.**
 
 - **M1 — Settings are global, not per-tenant.** Same root as C2. **[SCALE]**
 - **M2 — Skipped AI cycles are invisible; timers not `unref`'d.** Log skips; consider adaptive cadence. **[FIX NOW]**
-- **M3 — `Math.random()` IDs** (sessions/messages/summaries). Guessable + collision-prone once addressable under auth. *Fix:* `crypto.randomUUID()`. **[FIX NOW — this batch]**
-- **M4 — Silent id sanitisation in `FileStorage`** can collapse two ids to one filename (overwrite). *Fix:* validate-and-reject, or hash ids. **[FIX NOW]**
-- **M5 — No structured logging / metrics / real health.** `/health` is static `{ok:true}`. *Fix:* JSON logging + Prometheus metrics + `/ready`. **[PRE-DEPLOY]**
-- **M6 — Config not validated; no fail-fast at boot.** *Fix:* validate required env, fail fast. **[FIX NOW]**
-- **M7 — `readJson` rejects oversize but doesn't `req.destroy()`.** Socket keeps receiving. *Fix:* destroy on reject; return `413`. **[FIX NOW — this batch]**
+- **M3 — `Math.random()` IDs** (sessions/messages/summaries). Guessable + collision-prone once addressable under auth. _Fix:_ `crypto.randomUUID()`. **[FIX NOW — this batch]**
+- **M4 — Silent id sanitisation in `FileStorage`** can collapse two ids to one filename (overwrite). _Fix:_ validate-and-reject, or hash ids. **[FIX NOW]**
+- **M5 — No structured logging / metrics / real health.** `/health` is static `{ok:true}`. _Fix:_ JSON logging + Prometheus metrics + `/ready`. **[PRE-DEPLOY]**
+- **M6 — Config not validated; no fail-fast at boot.** _Fix:_ validate required env, fail fast. **[FIX NOW]**
+- **M7 — `readJson` rejects oversize but doesn't `req.destroy()`.** Socket keeps receiving. _Fix:_ destroy on reject; return `413`. **[FIX NOW — this batch]**
 
 ---
 
@@ -184,7 +196,7 @@ risks:
 2. **Indefinite plaintext retention + no erasure. [FIX NOW + LEGAL]** — violates storage-limitation/minimisation (UK/EU GDPR Art 5) and Twitch DSA (chat cache exception is ~24h, no "public databases"). → retention sweep, per-author deletion, encryption at rest, anonymisation.
 3. **Sending chat to Anthropic with no DPA/transfer/disclosure/Twitch-permission. [FIX NOW + LEGAL]** — Anthropic is a sub-processor (GDPR Art 28); UK/EU→US transfer needs SCCs/IDTA; Twitch DSA limits third-party sharing. → accept Anthropic Commercial Terms (DPA auto-applies), request **Zero Data Retention**, ensure no-training is on, disclose sub-processor, resolve Twitch permission.
 4. **No lawful basis + no Art 14 transparency ("invisible processing"). [LEGAL]** — realistic basis is legitimate interests (needs a documented LIA + DPIA); publish a privacy notice covering chatters.
-5. **Controller-vs-processor misjudgement. [LEGAL]** — you're likely a *controller* for the AI/analytics ("moat") processing; that decides who owes chatters transparency.
+5. **Controller-vs-processor misjudgement. [LEGAL]** — you're likely a _controller_ for the AI/analytics ("moat") processing; that decides who owes chatters transparency.
 
 **Compliance checklist (local → SaaS):** retention limits + sweep · granular
 (per-author/message) deletion + honour Twitch message-delete events · encrypt at
@@ -200,18 +212,18 @@ controller/processor characterisation.**
 
 Installed builds already drift ahead of the pins; the **pin floors** are the risk.
 
-| Package | Pinned | Latest | Action | Risk |
-|---|---|---|---|---|
-| **vite** | `^5.4.11` | 6 / 7 / 8 | **Floor → `>=5.4.18` now** (closes 4 CVEs); plan Vite 7 (needs Node ≥20.19/22.12) | High at major |
-| **node engine** | `>=20.11` | 24 LTS (20 **EOL**) | **→ `>=22.12`, ideally `>=24`; CI to Node 24** | Low–mod |
-| **eslint** | `^9.17` | 10.5 (9.x EOL soon) | → `^10` (flat-config only; time-sensitive) | Low if flat |
-| **react / react-dom** | `^18.3.1` | 19.2 | → 19 (mature; codemods; drop `forwardRef`) | Moderate |
-| **typescript** | `^5.6.3` | 6.0 | → `^6` (last JS-based TS; stricter) | Low–mod |
-| **vitest** | `^2.1.8` | 3.x | → `^3` (with Vite) | Moderate |
-| **pnpm** | `9.15` | 10 / 11 | → 10 (lifecycle scripts now opt-in via `onlyBuiltDependencies`) | Moderate |
-| **@anthropic-ai/sdk** | `^0.32.1` | ~0.105 (still 0.x) | upgrade incrementally (breaking 0.x minors; isolated in `packages/ai`) | High effort |
-| **ws** | `^8.18.0` | 8.x | routine bump (floor already past CVE-2024-37890) | Low |
-| **tsx / prettier / typescript-eslint** | — | current majors | routine bumps | Low |
+| Package                                | Pinned    | Latest              | Action                                                                            | Risk          |
+| -------------------------------------- | --------- | ------------------- | --------------------------------------------------------------------------------- | ------------- |
+| **vite**                               | `^5.4.11` | 6 / 7 / 8           | **Floor → `>=5.4.18` now** (closes 4 CVEs); plan Vite 7 (needs Node ≥20.19/22.12) | High at major |
+| **node engine**                        | `>=20.11` | 24 LTS (20 **EOL**) | **→ `>=22.12`, ideally `>=24`; CI to Node 24**                                    | Low–mod       |
+| **eslint**                             | `^9.17`   | 10.5 (9.x EOL soon) | → `^10` (flat-config only; time-sensitive)                                        | Low if flat   |
+| **react / react-dom**                  | `^18.3.1` | 19.2                | → 19 (mature; codemods; drop `forwardRef`)                                        | Moderate      |
+| **typescript**                         | `^5.6.3`  | 6.0                 | → `^6` (last JS-based TS; stricter)                                               | Low–mod       |
+| **vitest**                             | `^2.1.8`  | 3.x                 | → `^3` (with Vite)                                                                | Moderate      |
+| **pnpm**                               | `9.15`    | 10 / 11             | → 10 (lifecycle scripts now opt-in via `onlyBuiltDependencies`)                   | Moderate      |
+| **@anthropic-ai/sdk**                  | `^0.32.1` | ~0.105 (still 0.x)  | upgrade incrementally (breaking 0.x minors; isolated in `packages/ai`)            | High effort   |
+| **ws**                                 | `^8.18.0` | 8.x                 | routine bump (floor already past CVE-2024-37890)                                  | Low           |
+| **tsx / prettier / typescript-eslint** | —         | current majors      | routine bumps                                                                     | Low           |
 
 **Order:** (1) Vite floor [security] → (2) Node engine + CI [support] → (3) ESLint 10
 [EOL] → (4) React 19 / TS 6 / Vitest 3 / pnpm 10 / Anthropic [deliberate cluster] →

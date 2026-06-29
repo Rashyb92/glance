@@ -83,7 +83,8 @@ describe('admin console (HTTP)', () => {
   it('rejects API calls without a valid operator token', async () => {
     expect((await fetch(`${BASE}/api/admin/tenant/t1`)).status).toBe(401);
     expect(
-      (await fetch(`${BASE}/api/admin/tenant/t1`, { headers: { Authorization: 'Bearer wrong' } })).status,
+      (await fetch(`${BASE}/api/admin/tenant/t1`, { headers: { Authorization: 'Bearer wrong' } }))
+        .status,
     ).toBe(401);
   });
 
@@ -94,9 +95,14 @@ describe('admin console (HTTP)', () => {
   });
 
   it('force-logs-out a tenant and revokes a member', async () => {
-    expect((await fetch(`${BASE}/api/admin/tenant/t7/logout`, { method: 'POST', headers: AUTH })).status).toBe(200);
+    expect(
+      (await fetch(`${BASE}/api/admin/tenant/t7/logout`, { method: 'POST', headers: AUTH })).status,
+    ).toBe(200);
     expect(calls.forceLogout).toContain('t7');
-    const r = await fetch(`${BASE}/api/admin/tenant/t7/member/m3/revoke`, { method: 'POST', headers: AUTH });
+    const r = await fetch(`${BASE}/api/admin/tenant/t7/member/m3/revoke`, {
+      method: 'POST',
+      headers: AUTH,
+    });
     expect(r.status).toBe(200);
     expect(calls.revokeMember).toContainEqual(['t7', 'm3']);
   });
@@ -149,7 +155,9 @@ describe('admin console (HTTP)', () => {
     await wait(40); // let the prior actions' async audit writes settle
     const r = await fetch(`${BASE}/api/admin/audit`, { headers: AUTH });
     expect(r.status).toBe(200);
-    const { entries } = (await r.json()) as { entries: Array<{ operator: string; action: string }> };
+    const { entries } = (await r.json()) as {
+      entries: Array<{ operator: string; action: string }>;
+    };
     expect(entries.length).toBeGreaterThan(0);
     expect(entries.every((e) => e.operator === 'admin')).toBe(true);
     expect(entries.some((e) => e.action === 'force-logout')).toBe(true);

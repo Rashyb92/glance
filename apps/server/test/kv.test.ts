@@ -18,9 +18,7 @@ function fakeSql(): SqlClient {
       map.delete(p[0] ?? '');
     } else if (text.startsWith('SELECT key')) {
       const prefix = (p[0] ?? '').slice(0, -1); // strip trailing %
-      rows = [...map]
-        .filter(([k]) => k.startsWith(prefix))
-        .map(([key, value]) => ({ key, value }));
+      rows = [...map].filter(([k]) => k.startsWith(prefix)).map(([key, value]) => ({ key, value }));
     }
     return Promise.resolve({ rows });
   };

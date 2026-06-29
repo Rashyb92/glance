@@ -34,11 +34,16 @@ describe('OAuthService.buildAuthorize', () => {
 
   it('builds a Twitch authorize URL with scope + redirect, no PKCE', () => {
     process.env['TWITCH_CLIENT_ID'] = 'cid';
-    const { url, verifier } = new OAuthService('https://glance.app').buildAuthorize('twitch', 'st8');
+    const { url, verifier } = new OAuthService('https://glance.app').buildAuthorize(
+      'twitch',
+      'st8',
+    );
     expect(url).toContain('https://id.twitch.tv/oauth2/authorize?');
     expect(url).toContain('client_id=cid');
     expect(url).toContain('scope=user%3Aread%3Achat');
-    expect(url).toContain('redirect_uri=https%3A%2F%2Fglance.app%2Fapi%2Foauth%2Ftwitch%2Fcallback');
+    expect(url).toContain(
+      'redirect_uri=https%3A%2F%2Fglance.app%2Fapi%2Foauth%2Ftwitch%2Fcallback',
+    );
     expect(url).toContain('state=st8');
     expect(verifier).toBeUndefined();
   });

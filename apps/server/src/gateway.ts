@@ -110,8 +110,14 @@ export function startGateway(
   admin?: AdminDeps,
 ): Gateway {
   // Per-IP token buckets: cheap protection against floods / accidental loops.
-  const httpLimiter = new RateLimiter(intEnv('GLANCE_HTTP_BURST', 60), intEnv('GLANCE_HTTP_RPS', 20));
-  const connLimiter = new RateLimiter(intEnv('GLANCE_CONN_BURST', 20), intEnv('GLANCE_CONN_RPS', 5));
+  const httpLimiter = new RateLimiter(
+    intEnv('GLANCE_HTTP_BURST', 60),
+    intEnv('GLANCE_HTTP_RPS', 20),
+  );
+  const connLimiter = new RateLimiter(
+    intEnv('GLANCE_CONN_BURST', 20),
+    intEnv('GLANCE_CONN_RPS', 5),
+  );
   const server = createServer((req, res) =>
     handleHttp(req, res, control, httpLimiter, integrations, readiness, admin),
   );
@@ -182,7 +188,8 @@ export function startGateway(
     if (
       !actor ||
       (actor.memberId && !control.memberActive(actor.tenant, actor.memberId)) ||
-      (actor.sessionId && !control.sessionActive(actor.tenant, actor.sessionId, actor.issuedAt ?? 0))
+      (actor.sessionId &&
+        !control.sessionActive(actor.tenant, actor.sessionId, actor.issuedAt ?? 0))
     ) {
       metrics.inc('glance_ws_unauthorized_total');
       socket.close(1008, 'unauthorized');
@@ -370,7 +377,9 @@ function handleHttp(
           const demo = body['demo'] !== false;
           send(200, control.connectMany(tenant, parseChannels(body), demo));
         })
-        .catch((err: Error) => send(err.message === 'too_large' ? 413 : 400, { error: err.message }));
+        .catch((err: Error) =>
+          send(err.message === 'too_large' ? 413 : 400, { error: err.message }),
+        );
       return;
     }
   }
@@ -379,7 +388,9 @@ function handleHttp(
     if (req.method === 'POST' || req.method === 'PUT') {
       readJson(req)
         .then((body) => send(200, control.updateSettings(tenant, body)))
-        .catch((err: Error) => send(err.message === 'too_large' ? 413 : 400, { error: err.message }));
+        .catch((err: Error) =>
+          send(err.message === 'too_large' ? 413 : 400, { error: err.message }),
+        );
       return;
     }
   }
@@ -402,7 +413,10 @@ function handleHttp(
   if (url === '/api/analytics') {
     if (req.method === 'GET') {
       const report = control.analytics(tenant);
-      return send(report ? 200 : 403, report ?? { error: 'advanced analytics is not on your plan' });
+      return send(
+        report ? 200 : 403,
+        report ?? { error: 'advanced analytics is not on your plan' },
+      );
     }
   }
   if (url === '/api/team') {
@@ -423,7 +437,9 @@ function handleHttp(
           if ('error' in result) return send(400, result);
           return send(200, result);
         })
-        .catch((err: Error) => send(err.message === 'too_large' ? 413 : 400, { error: err.message }));
+        .catch((err: Error) =>
+          send(err.message === 'too_large' ? 413 : 400, { error: err.message }),
+        );
       return;
     }
   }
@@ -478,7 +494,9 @@ function handleHttp(
           );
           return send('error' in result ? 400 : 200, result);
         })
-        .catch((err: Error) => send(err.message === 'too_large' ? 413 : 400, { error: err.message }));
+        .catch((err: Error) =>
+          send(err.message === 'too_large' ? 413 : 400, { error: err.message }),
+        );
       return;
     }
   }
